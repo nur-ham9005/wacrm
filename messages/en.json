@@ -14,6 +14,21 @@
     "noAccount": "Don't have an account?",
     "createAccount": "Create account"
   },
+  "ResetPassword": {
+    "title": "Set a new password",
+    "description": "Choose a new password for your account.",
+    "passwordLabel": "New password",
+    "passwordPlaceholder": "Enter your new password",
+    "confirmLabel": "Confirm new password",
+    "confirmPlaceholder": "Re-enter your new password",
+    "updateButton": "Update password",
+    "updating": "Updating…",
+    "passwordMismatch": "New password and confirmation do not match",
+    "passwordTooShort": "Password must be at least 8 characters",
+    "successTitle": "Password updated",
+    "successDesc": "Your password has been changed. You can now sign in.",
+    "backToLogin": "Back to sign in"
+  },
   "Sidebar": {
     "title": "CRM Template for WhatsApp",
     "dashboard": "Dashboard",

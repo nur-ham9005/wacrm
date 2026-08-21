@@ -14,6 +14,21 @@
     "noAccount": "Belum punya akun?",
     "createAccount": "Buat akun"
   },
+  "ResetPassword": {
+    "title": "Atur kata sandi baru",
+    "description": "Pilih kata sandi baru untuk akun Anda.",
+    "passwordLabel": "Kata sandi baru",
+    "passwordPlaceholder": "Masukkan kata sandi baru Anda",
+    "confirmLabel": "Konfirmasi kata sandi baru",
+    "confirmPlaceholder": "Masukkan ulang kata sandi baru Anda",
+    "updateButton": "Perbarui kata sandi",
+    "updating": "Memperbarui…",
+    "passwordMismatch": "Kata sandi baru dan konfirmasi tidak cocok",
+    "passwordTooShort": "Kata sandi harus minimal 8 karakter",
+    "successTitle": "Kata sandi diperbarui",
+    "successDesc": "Kata sandi Anda telah diubah. Anda sekarang dapat masuk.",
+    "backToLogin": "Kembali ke halaman masuk"
+  },
   "Sidebar": {
     "title": "Template CRM untuk WhatsApp",
     "dashboard": "Dasbor",
