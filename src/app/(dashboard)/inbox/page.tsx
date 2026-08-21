@@ -10,6 +10,7 @@ import {
 } from "@/lib/inbox/conversations";
 import type { Conversation, Message, Contact, ConversationStatus } from "@/types";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useNotificationSound } from "@/hooks/use-notification-sound";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
@@ -36,6 +37,7 @@ function InboxPageInner() {
   const t = useTranslations("Inbox.page");
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { playIncomingMessageSound } = useNotificationSound();
   /**
    * `?c=<id>` deep-link support. Used when landing here from the
    * dashboard's recent-conversations list so the right thread opens
@@ -218,6 +220,12 @@ function InboxPageInner() {
       const newMsg = event.new;
 
       if (event.eventType === "INSERT") {
+        // Play the incoming-message chime for customer messages (never
+        // for our own outbound/agent/bot sends).
+        if (newMsg.sender_type === "customer") {
+          playIncomingMessageSound();
+        }
+
         // Add to messages if it belongs to active conversation
         if (
           activeConversation &&
@@ -272,7 +280,7 @@ function InboxPageInner() {
         );
       }
     },
-    [activeConversation, hydrateConversation]
+    [activeConversation, hydrateConversation, playIncomingMessageSound]
   );
 
   // Handle realtime conversation events

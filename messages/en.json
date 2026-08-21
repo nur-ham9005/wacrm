@@ -1558,6 +1558,7 @@
       "profile": "Your profile",
       "security": "Login & security",
       "appearance": "Appearance",
+      "notifications": "Notifications",
       "whatsapp": "WhatsApp",
       "templates": "Templates",
       "quick-replies": "Quick replies",
@@ -1631,6 +1632,12 @@
       "active": "Active",
       "accentColor": "Accent color",
       "useTheme": "Use {name} theme"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "description": "Choose which alerts play a sound. Changes are saved to this device.",
+      "incomingSoundTitle": "Sound on incoming messages",
+      "incomingSoundDesc": "Play a chime when a customer sends a new message."
     },
     "security": {
       "title": "Login & security",

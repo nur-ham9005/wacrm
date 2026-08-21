@@ -1548,6 +1548,7 @@
       "profile": "Profil Anda",
       "security": "Login & keamanan",
       "appearance": "Tampilan",
+      "notifications": "Notifikasi",
       "whatsapp": "WhatsApp",
       "templates": "Template",
       "quick-replies": "Balasan cepat",
@@ -1619,6 +1620,12 @@
       "active": "Aktif",
       "accentColor": "Warna aksen",
       "useTheme": "Gunakan tema {name}"
+    },
+    "notifications": {
+      "title": "Notifikasi",
+      "description": "Pilih pemberitahuan mana yang memutar bunyi. Perubahan disimpan di perangkat ini.",
+      "incomingSoundTitle": "Bunyi saat pesan masuk",
+      "incomingSoundDesc": "Putar bunyi saat pelanggan mengirim pesan baru."
     },
     "security": {
       "title": "Login & keamanan",
