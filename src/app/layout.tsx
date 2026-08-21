@@ -22,8 +22,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "Trazt CRM Whatsapp",
-    template: "%s — Trazt CRM Whatsapp",
+    default: "Trazt WA CRM",
+    template: "%s — Trazt WA CRM",
   },
   description: "Self-hostable CRM for WhatsApp.",
   robots: {

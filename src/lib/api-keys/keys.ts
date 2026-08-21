@@ -14,7 +14,7 @@
 //
 // Why the `trazt_live_` prefix
 //   - Self-identifying: a leaked string is instantly recognisable as
-//     a Trazt CRM Whatsapp key (handy for secret-scanners like GitGuardian).
+//     a Trazt WA CRM key (handy for secret-scanners like GitGuardian).
 //   - Forward-compatible: leaves room for a `trazt_test_` variant if
 //     a sandbox mode is ever added, without reshaping the format.
 // ============================================================

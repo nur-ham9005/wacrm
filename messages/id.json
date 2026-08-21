@@ -30,7 +30,7 @@
     "backToLogin": "Kembali ke halaman masuk"
   },
   "Sidebar": {
-    "title": "Template CRM untuk WhatsApp",
+    "title": "Trazt WA CRM",
     "dashboard": "Dasbor",
     "inbox": "Kotak Masuk",
     "notifications": "Notifikasi",
@@ -1328,7 +1328,7 @@
       "labelTooLong": "Label harus {max} karakter atau kurang",
       "copied": "Tautan undangan disalin",
       "clipboardBlocked": "Clipboard diblokir — salin tautan secara manual",
-      "whatsappMessage": "Bergabung {accountName} di Trazt CRM Whatsapp menggunakan tautan ini (berlaku {expiresInDays} hari): {url}"
+      "whatsappMessage": "Bergabung {accountName} di Trazt WA CRM menggunakan tautan ini (berlaku {expiresInDays} hari): {url}"
     },
     "tagsAndFields": {
       "title": "Kolom & tag",
@@ -1439,8 +1439,8 @@
       "saveResubmit": "Simpan & Kirim Ulang",
       "submitApproval": "Kirim untuk Persetujuan",
       "deleteDialogTitle": "Hapus template?",
-      "deleteMetaDesc": "\"{name}\" akan dihapus dari Meta dan dari Trazt CRM Whatsapp. Siaran aktif yang menggunakan template ini akan gagal pada pengiriman berikutnya. Tidak dapat dibatalkan.",
-      "deleteLocalDesc": "\"{name}\" akan dihapus dari Trazt CRM Whatsapp. Tidak pernah dikirim ke Meta, jadi tidak perlu pembersihan jarak jauh.",
+      "deleteMetaDesc": "\"{name}\" akan dihapus dari Meta dan dari Trazt WA CRM. Siaran aktif yang menggunakan template ini akan gagal pada pengiriman berikutnya. Tidak dapat dibatalkan.",
+      "deleteLocalDesc": "\"{name}\" akan dihapus dari Trazt WA CRM. Tidak pernah dikirim ke Meta, jadi tidak perlu pembersihan jarak jauh.",
       "deleting": "Menghapus…",
       "delete": "Hapus",
       "toastLoadFailed": "Gagal memuat template",
@@ -1481,7 +1481,7 @@
       "notConnected": "Belum Terhubung",
       "connectedDesc": "Token akses Anda terautentikasi dengan Meta. Lihat status Pendaftaran di bawah untuk melihat apakah webhook benar-benar terhubung.",
       "notConnectedDesc": "Atur kredensial Meta API Anda di bawah untuk menghubungkan akun WhatsApp Business Anda.",
-      "registered": "Terdaftar — Meta akan mengirim peristiwa ke Trazt CRM Whatsapp",
+      "registered": "Terdaftar — Meta akan mengirim peristiwa ke Trazt WA CRM",
       "notRegistered": "Belum terdaftar — Meta tidak akan mengirim peristiwa",
       "verifyWithMeta": "Verifikasi dengan Meta",
       "subscribedSince": "Berlangganan sejak {date}. Klik Verifikasi dengan Meta jika peristiwa berhenti datang.",
@@ -1505,7 +1505,7 @@
       "twoStepPin": "PIN verifikasi dua langkah",
       "optional": "(opsional)",
       "pinPlaceholder": "PIN 6 digit dari Meta WhatsApp Manager",
-      "pinHint": "Hanya diperlukan untuk menyambungkan pesan masuk untuk nomor produksi. Atur di Meta Business Manager → WhatsApp Accounts → Phone Numbers → Two-step verification, lalu tempel di sini agar Trazt CRM Whatsapp dapat berlangganan nomor tersebut — jika tidak, Meta mengarahkan peristiwa masuk ke aplikasi yang terakhir mengklaimnya (gejala yang menimpa nomor kedua di bawah WABA yang sama). Nomor uji Meta tidak memiliki PIN dan sudah terdaftar — biarkan kosong untuk itu. Membiarkannya kosong juga menjaga pendaftaran yang ada tetap utuh.",
+      "pinHint": "Hanya diperlukan untuk menyambungkan pesan masuk untuk nomor produksi. Atur di Meta Business Manager → WhatsApp Accounts → Phone Numbers → Two-step verification, lalu tempel di sini agar Trazt WA CRM dapat berlangganan nomor tersebut — jika tidak, Meta mengarahkan peristiwa masuk ke aplikasi yang terakhir mengklaimnya (gejala yang menimpa nomor kedua di bawah WABA yang sama). Nomor uji Meta tidak memiliki PIN dan sudah terdaftar — biarkan kosong untuk itu. Membiarkannya kosong juga menjaga pendaftaran yang ada tetap utuh.",
       "webhookTitle": "Konfigurasi Webhook",
       "webhookDesc": "Gunakan URL ini sebagai callback webhook di Meta App Dashboard.",
       "webhookUrl": "URL Callback Webhook",
@@ -1683,7 +1683,7 @@
     },
     "aiConfig": {
       "title": "Pengaturan agen",
-      "description": "Bawa kunci OpenAI atau Anthropic Anda sendiri. Trazt CRM Whatsapp memanggil provider langsung dengan kunci Anda — tanpa biaya AI per kursi, dan data Anda tetap milik Anda. Ini menggerakkan draf balasan AI di kotak masuk, bot auto-reply, dan Playground.",
+      "description": "Bawa kunci OpenAI atau Anthropic Anda sendiri. Trazt WA CRM memanggil provider langsung dengan kunci Anda — tanpa biaya AI per kursi, dan data Anda tetap milik Anda. Ini menggerakkan draf balasan AI di kotak masuk, bot auto-reply, dan Playground.",
       "adminOnlyConfig": "Hanya admin dan pemilik yang dapat mengubah konfigurasi AI.",
       "loadFailed": "Gagal memuat konfigurasi AI",
       "providerAndKey": "Provider & kunci",
