@@ -1,12 +1,8 @@
 import { ImageResponse } from "next/og";
 
-// Replaces the default Next.js favicon with the brand mark — Hostinger
-// violet rounded square + white chat-square glyph — matching the
-// sidebar logo in `src/components/layout/sidebar.tsx`. Next.js renders
-// this at build time and auto-injects <link rel="icon"> into <head>.
-//
-// This route takes precedence over src/app/favicon.ico, which is the
-// Next.js default and can stay on disk harmlessly (or be removed).
+// Placeholder favicon matching the Trazt CRM Whatsapp brand navy
+// (#0b1f32) + white chat-square glyph. Swap this for the real brand
+// mark once the final logo file lands in `src/app/icon.png`.
 
 export const runtime = "edge";
 export const size = { width: 32, height: 32 };
@@ -22,7 +18,7 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#7c3aed", // primary (Hostinger-aligned purple)
+          background: "#0b1f32",
           borderRadius: 6,
         }}
       >
