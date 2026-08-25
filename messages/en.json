@@ -301,6 +301,8 @@
       "deals": "Deals",
       "noTags": "No tags",
       "noDeals": "No deals",
+      "addTag": "Add tag",
+      "removeTag": "Remove tag",
       "addNotePlaceholder": "Add a note..."
     },
     "aiBanner": {

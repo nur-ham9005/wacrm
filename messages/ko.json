@@ -301,6 +301,8 @@
       "deals": "딜",
       "noTags": "태그 없음",
       "noDeals": "딜 없음",
+      "addTag": "태그 추가",
+      "removeTag": "태그 제거",
       "addNotePlaceholder": "메모 추가..."
     },
     "aiBanner": {
