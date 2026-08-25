@@ -16,6 +16,8 @@ const h = vi.hoisted(() => ({
     flows: [] as unknown[],
     nodes: [] as unknown[],
     inserted: [] as { table: string; row: Record<string, unknown> }[],
+    /** conversation UPDATE rows (captured for the handoff-disables-AI test). */
+    convUpdates: [] as Record<string, unknown>[],
     /** Set by the flow_runs INSERT; what its .maybeSingle() returns. */
     insertedRun: null as Record<string, unknown> | null,
     rpcCalls: [] as string[],
@@ -38,7 +40,10 @@ vi.mock("./admin-client", () => {
       filter: () => b,
       order: () => b,
       limit: () => b,
-      update: () => b,
+      update: (row: Record<string, unknown>) => {
+        if (table === "conversations") h.state.convUpdates.push(row);
+        return b;
+      },
       insert: (row: Record<string, unknown>) => {
         h.state.inserted.push({ table, row });
         if (table === "flow_runs") {
@@ -155,6 +160,7 @@ beforeEach(() => {
   h.state.flows = [];
   h.state.nodes = NODES;
   h.state.inserted = [];
+  h.state.convUpdates = [];
   h.state.insertedRun = null;
   h.state.rpcCalls = [];
   engineSendText.mockClear();
@@ -315,5 +321,47 @@ describe("dispatchInboundToFlows — entry triggers (#490)", () => {
     expect(result.consumed).toBe(true);
     expect(result.flow_run_id).toBe("run-1");
     expect(startedRuns()).toHaveLength(1);
+  });
+
+  it("disables AI auto-reply on the conversation when the flow hands off", async () => {
+    h.state.flows = [KEYWORD_FLOW];
+    h.state.nodes = [
+      { id: "n1", flow_id: "flow-1", node_key: "start", node_type: "start", config: { next_node_key: "intro" } },
+      { id: "n2", flow_id: "flow-1", node_key: "intro", node_type: "send_message", config: { text: "On it.", next_node_key: "handoff" } },
+      { id: "n3", flow_id: "flow-1", node_key: "handoff", node_type: "handoff", config: { note: "please help" } },
+      { id: "n4", flow_id: "flow-1", node_key: "end", node_type: "end", config: {} },
+    ];
+
+    const result = await dispatch({
+      kind: "text",
+      text: "order status",
+      meta_message_id: "m1",
+    });
+
+    expect(result.consumed).toBe(true);
+    const convUpdate = h.state.convUpdates[0];
+    expect(convUpdate).toMatchObject({
+      status: "pending",
+      ai_autoreply_disabled: true,
+    });
+    expect(convUpdate.assigned_agent_id).toBeUndefined();
+  });
+
+  it("assigns the handoff target when the node config carries assign_to", async () => {
+    h.state.flows = [KEYWORD_FLOW];
+    h.state.nodes = [
+      { id: "n1", flow_id: "flow-1", node_key: "start", node_type: "start", config: { next_node_key: "handoff" } },
+      { id: "n3", flow_id: "flow-1", node_key: "handoff", node_type: "handoff", config: { note: "x", assign_to: "u-2" } },
+    ];
+
+    await dispatch({
+      kind: "text",
+      text: "order status",
+      meta_message_id: "m1",
+    });
+
+    const convUpdate = h.state.convUpdates[0];
+    expect(convUpdate.assigned_agent_id).toBe("u-2");
+    expect(convUpdate.ai_autoreply_disabled).toBe(true);
   });
 });

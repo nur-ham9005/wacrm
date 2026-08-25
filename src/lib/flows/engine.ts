@@ -473,6 +473,11 @@ async function executeHandoff(
   const convUpdate: Record<string, unknown> = {
     status: "pending",
     updated_at: new Date().toISOString(),
+    // A flow handing the thread to a human is the strongest "yield to a
+    // person" signal there is. Sticky-disable the AI auto-reply so it
+    // can't keep answering the customer alongside the agent (the same
+    // flag the AI handoff path sets in src/lib/ai/auto-reply.ts).
+    ai_autoreply_disabled: true,
   };
   if (cfg.assign_to) convUpdate.assigned_agent_id = cfg.assign_to;
   if (run.conversation_id) {
