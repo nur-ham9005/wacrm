@@ -128,6 +128,54 @@ describe('generateReply — OpenAI', () => {
   })
 })
 
+describe('generateReply — DeepSeek', () => {
+  it('calls the DeepSeek chat completions endpoint and returns the reply', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      okResponse({
+        choices: [{ message: { content: 'Tentu, silakan!' } }],
+        usage: { prompt_tokens: 20, completion_tokens: 5, total_tokens: 25 },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const res = await generateReply({
+      config: config({ provider: 'deepseek', model: 'deepseek-chat' }),
+      systemPrompt: 'sys',
+      messages: [{ role: 'user', content: 'Halo' }],
+    })
+
+    expect(res).toEqual({
+      text: 'Tentu, silakan!',
+      handoff: false,
+      usage: { promptTokens: 20, completionTokens: 5, totalTokens: 25 },
+    })
+    const [url, opts] = fetchMock.mock.calls[0]
+    expect(url).toContain('api.deepseek.com')
+    expect(opts.headers.Authorization).toBe('Bearer sk-test')
+    // DeepSeek accepts max_tokens (not OpenAI's max_completion_tokens).
+    const body = JSON.parse(opts.body)
+    expect(body.max_tokens).toBeGreaterThan(0)
+    expect(body.model).toBe('deepseek-chat')
+  })
+
+  it('maps a 401 to an invalid_key AiError', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        errResponse(401, { error: { message: 'Invalid API key' } }),
+      ),
+    )
+
+    await expect(
+      generateReply({
+        config: config({ provider: 'deepseek' }),
+        systemPrompt: 'sys',
+        messages: [{ role: 'user', content: 'Hi' }],
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_key', status: 401 })
+  })
+})
+
 describe('generateReply — Anthropic', () => {
   it('calls the messages endpoint with the version header and parses text blocks', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
