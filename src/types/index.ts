@@ -298,6 +298,13 @@ export interface WhatsAppConfig {
    * inbound attachments expire. Migration 039.
    */
   mirror_inbound_media?: boolean;
+  /**
+   * The account's WhatsApp business number in international E.164 form
+   * (e.g. 6281234567890), as reported by Meta. Used by the send path to
+   * internationalize contact numbers stored in domestic format (leading
+   * 0). Migration 040.
+   */
+  display_phone_number?: string;
 }
 
 // Raw Meta status enum. We persist this verbatim from Meta (sync + webhook)

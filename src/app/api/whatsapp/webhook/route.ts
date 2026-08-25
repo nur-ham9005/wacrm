@@ -295,6 +295,25 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
 
       const config = configRows[0]
 
+      // Best-effort backfill of the account's business number (migration
+      // 040) from the webhook payload — Meta includes it on every
+      // inbound as metadata.display_phone_number. The send path uses it
+      // to internationalize domestic-format contact numbers. A failed
+      // write is non-fatal; the config save / health check re-fills it.
+      const inboundDisplay = value.metadata.display_phone_number
+      if (inboundDisplay && inboundDisplay !== config.display_phone_number) {
+        const { error: displayErr } = await supabaseAdmin()
+          .from('whatsapp_config')
+          .update({ display_phone_number: inboundDisplay })
+          .eq('id', config.id)
+        if (displayErr) {
+          console.warn(
+            '[webhook] display_phone_number backfill failed:',
+            displayErr.message
+          )
+        }
+      }
+
       const decryptedAccessToken = decrypt(config.access_token)
 
       for (let i = 0; i < value.messages.length; i++) {
