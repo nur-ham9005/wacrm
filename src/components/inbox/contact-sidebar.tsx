@@ -20,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { useTranslations } from "next-intl";
-import { addContactTag, deleteContactTag } from "@/lib/contacts/tag-api";
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -34,9 +33,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const [copied, setCopied] = useState(false);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [notes, setNotes] = useState<ContactNote[]>([]);
-  const [allTags, setAllTags] = useState<Tag[]>([]);
-  const [contactTagIds, setContactTagIds] = useState<string[]>([]);
-  const [savingTag, setSavingTag] = useState(false);
+  const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
 
@@ -46,7 +43,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     const supabase = createClient();
 
     // Fetch deals, notes, and tags in parallel
-    const [dealsRes, notesRes, tagsRes, allTagsRes] = await Promise.all([
+    const [dealsRes, notesRes, tagsRes] = await Promise.all([
       supabase
         .from("deals")
         .select("*, stage:pipeline_stages(*)")
@@ -61,24 +58,20 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
         .from("contact_tags")
         .select("id, tag_id, tags(*)")
         .eq("contact_id", contact.id),
-      supabase
-        .from("tags")
-        .select("*")
-        .eq("account_id", accountId ?? "")
-        .order("name"),
     ]);
 
     if (dealsRes.data) setDeals(dealsRes.data);
     if (notesRes.data) setNotes(notesRes.data);
-    if (allTagsRes.data) setAllTags(allTagsRes.data);
     if (tagsRes.data) {
-      setContactTagIds(
-        tagsRes.data
-          .filter((ct: Record<string, unknown>) => ct.tags)
-          .map((ct: Record<string, unknown>) => ct.tag_id as string),
-      );
+      const mapped = tagsRes.data
+        .filter((ct: Record<string, unknown>) => ct.tags)
+        .map((ct: Record<string, unknown>) => ({
+          ...(ct.tags as Tag),
+          contact_tag_id: ct.id as string,
+        }));
+      setTags(mapped);
     }
-  }, [contact, accountId]);
+  }, [contact]);
 
   // Load on contact change. setContactData/setTags run inside async
   // Supabase callbacks, not synchronously in the effect body.
@@ -96,28 +89,6 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     // React Compiler's inference agrees with the manual dep list —
     // fixes the `preserve-manual-memoization` lint error.
   }, [contact]);
-
-  const toggleTag = useCallback(
-    async (tagId: string) => {
-      if (!contact || savingTag) return;
-      setSavingTag(true);
-      const isSelected = contactTagIds.includes(tagId);
-      try {
-        if (isSelected) {
-          await deleteContactTag(contact.id, tagId);
-          setContactTagIds((prev) => prev.filter((id) => id !== tagId));
-        } else {
-          await addContactTag(contact.id, tagId);
-          setContactTagIds((prev) => [...prev, tagId]);
-        }
-      } catch (err) {
-        console.error("Failed to update contact tag:", err);
-      } finally {
-        setSavingTag(false);
-      }
-    },
-    [contact, savingTag, contactTagIds],
-  );
 
   const handleAddNote = useCallback(async () => {
     if (!contact || !newNote.trim()) return;
@@ -217,45 +188,21 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
               {tSidebar("tags")}
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
-              {allTags.length === 0 ? (
-                <p className="px-1 text-xs text-muted-foreground">
-                  {tSidebar("noTags")}
-                </p>
+              {tags.length === 0 ? (
+                <p className="px-1 text-xs text-muted-foreground">{tSidebar("noTags")}</p>
               ) : (
-                allTags.map((tag) => {
-                  const selected = contactTagIds.includes(tag.id);
-                  return (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      onClick={() => toggleTag(tag.id)}
-                      disabled={savingTag}
-                      title={
-                        selected
-                          ? tSidebar("removeTag")
-                          : tSidebar("addTag")
-                      }
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-opacity disabled:opacity-50",
-                        selected ? "" : "opacity-60 hover:opacity-100",
-                      )}
-                      style={{
-                        backgroundColor: selected
-                          ? `${tag.color}20`
-                          : "transparent",
-                        color: tag.color,
-                        border: `1px solid ${tag.color}40`,
-                      }}
-                    >
-                      {selected ? (
-                        <Check className="h-3 w-3" />
-                      ) : (
-                        <Plus className="h-3 w-3" />
-                      )}
-                      {tag.name}
-                    </button>
-                  );
-                })
+                tags.map((tag) => (
+                  <span
+                    key={tag.contact_tag_id}
+                    className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                    style={{
+                      backgroundColor: `${tag.color}20`,
+                      color: tag.color,
+                    }}
+                  >
+                    {tag.name}
+                  </span>
+                ))
               )}
             </div>
           </div>
