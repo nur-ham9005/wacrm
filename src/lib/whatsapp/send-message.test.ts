@@ -6,7 +6,6 @@ import {
   SendMessageError,
   type SendMessageParams,
 } from './send-message';
-import { sendTextMessage } from '@/lib/whatsapp/meta-api';
 
 // A db that explodes if touched — these tests cover the param
 // validation that MUST short-circuit before any query runs.
@@ -197,7 +196,6 @@ vi.mock('@/lib/flows/admin-client', () => ({
 interface CapturedWrites {
   message?: Record<string, unknown>;
   conversation?: Record<string, unknown>;
-  contactPhone?: string;
 }
 
 /**
@@ -208,21 +206,16 @@ interface CapturedWrites {
  */
 function sendPathDb(
   templateRows: unknown[],
-  captured: CapturedWrites,
-  overrides?: { contactPhone?: string; displayPhoneNumber?: string }
+  captured: CapturedWrites
 ): SupabaseClient {
   const conversation = {
     id: 'cv-1',
-    contact: {
-      id: 'ct-1',
-      phone: overrides?.contactPhone ?? '+15551234567',
-    },
+    contact: { id: 'ct-1', phone: '+15551234567' },
   };
   const config = {
     id: 'cfg-1',
     phone_number_id: 'pn-1',
     access_token: 'token',
-    display_phone_number: overrides?.displayPhoneNumber ?? '14155550000',
   };
 
   return {
@@ -236,7 +229,6 @@ function sendPathDb(
         },
         update: (row: Record<string, unknown>) => {
           if (table === 'conversations') captured.conversation = row;
-          if (table === 'contacts') captured.contactPhone = row.phone as string;
           return builder;
         },
         maybeSingle: async () => ({ data: null, error: null }),
@@ -352,50 +344,5 @@ describe('sendMessageToConversation — template persistence (#483)', () => {
     // name rather than inventing a body.
     expect(captured.message?.content_text).toBeNull();
     expect(captured.conversation?.last_message_text).toBe('[template]');
-  });
-});
-
-describe('sendMessageToConversation — domestic-format contact phones', () => {
-  it('internationalizes a leading-0 contact phone and persists the corrected number', async () => {
-    const captured: CapturedWrites = {};
-    await sendMessageToConversation(
-      sendPathDb([], captured, {
-        contactPhone: '087721603004',
-        displayPhoneNumber: '6281234567890',
-      }),
-      'acct-1',
-      {
-        conversationId: 'cv-1',
-        messageType: 'text',
-        contentText: 'halo',
-      }
-    );
-
-    // Sent to Meta in E.164 form, not the stored domestic form.
-    const sendCall = vi.mocked(sendTextMessage).mock.calls[0][0];
-    expect(sendCall.to).toBe('6287721603004');
-    // The corrected number is written back onto the contact so the next
-    // send goes straight through.
-    expect(captured.contactPhone).toBe('6287721603004');
-  });
-
-  it('still rejects a domestic number when the business number country is unknown', async () => {
-    await expect(
-      sendMessageToConversation(
-        sendPathDb([], {}, {
-          contactPhone: '087721603004',
-          displayPhoneNumber: '',
-        }),
-        'acct-1',
-        {
-          conversationId: 'cv-1',
-          messageType: 'text',
-          contentText: 'halo',
-        }
-      )
-    ).rejects.toMatchObject({
-      status: 400,
-      message: 'Invalid phone number format',
-    });
   });
 });

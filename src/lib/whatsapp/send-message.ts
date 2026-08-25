@@ -41,7 +41,6 @@ import {
   isValidE164,
   phoneVariants,
   isRecipientNotAllowedError,
-  internationalizeDomesticPhone,
 } from '@/lib/whatsapp/phone-utils';
 import type { MessageTemplate } from '@/types';
 import {
@@ -243,9 +242,16 @@ export async function sendMessageToConversation(
     );
   }
 
-  // WhatsApp config, account-scoped. Loaded before the phone check so a
-  // domestic-format contact number can be internationalized with the
-  // account's business number country code (see below).
+  const sanitizedPhone = sanitizePhoneForMeta(contact.phone);
+  if (!isValidE164(sanitizedPhone)) {
+    throw new SendMessageError(
+      'bad_request',
+      'Invalid phone number format',
+      400
+    );
+  }
+
+  // WhatsApp config, account-scoped.
   const { data: config, error: configError } = await db
     .from('whatsapp_config')
     .select('*')
@@ -259,29 +265,6 @@ export async function sendMessageToConversation(
       400
     );
   }
-
-  const sanitizedPhone = sanitizePhoneForMeta(contact.phone);
-  // Contacts the webhook auto-creates always store international format
-  // (Meta's `from`), but a manually-added or imported contact can hold a
-  // domestic number (leading 0, e.g. "087721603004"). Meta only accepts
-  // E.164, so try to internationalize it from the business number's
-  // country code before rejecting — otherwise replying to such a contact
-  // always 400s. The corrected number is persisted back onto the contact
-  // after a successful send (the workingPhone flow below).
-  const internationalized = isValidE164(sanitizedPhone)
-    ? null
-    : internationalizeDomesticPhone(
-        sanitizedPhone,
-        config.display_phone_number ?? ''
-      );
-  if (!isValidE164(sanitizedPhone) && !internationalized) {
-    throw new SendMessageError(
-      'bad_request',
-      'Invalid phone number format',
-      400
-    );
-  }
-  const recipientPhone = internationalized ?? sanitizedPhone;
 
   const accessToken = decrypt(config.access_token);
 
@@ -423,9 +406,9 @@ export async function sendMessageToConversation(
   // with "recipient not in allowed list"; persist a working variant
   // back to the contact so the next send goes straight through.
   let waMessageId = '';
-  let workingPhone = recipientPhone;
+  let workingPhone = sanitizedPhone;
   try {
-    const variants = phoneVariants(recipientPhone);
+    const variants = phoneVariants(sanitizedPhone);
     let lastError: unknown = null;
 
     for (const variant of variants) {

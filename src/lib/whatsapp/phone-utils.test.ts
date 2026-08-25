@@ -6,8 +6,6 @@ import {
   phoneVariants,
   phonesMatch,
   sanitizePhoneForMeta,
-  countryCodeFromE164,
-  internationalizeDomesticPhone,
 } from "./phone-utils";
 
 describe("sanitizePhoneForMeta", () => {
@@ -162,58 +160,5 @@ describe("isRecipientNotAllowedError", () => {
       false,
     );
     expect(isRecipientNotAllowedError("")).toBe(false);
-  });
-});
-
-describe("countryCodeFromE164", () => {
-  it("derives a 2-digit code (Indonesia)", () => {
-    // "628..." — "62" is a real code; "628" is not, so the derivation
-    // is unambiguous.
-    expect(countryCodeFromE164("6281234567890")).toBe("62");
-  });
-
-  it("derives a 1-digit code (US / NANP)", () => {
-    expect(countryCodeFromE164("14157386170")).toBe("1");
-  });
-
-  it("derives a 1-digit code where the first two digits are not assigned (Russia)", () => {
-    expect(countryCodeFromE164("79161234567")).toBe("7");
-  });
-
-  it("derives a 3-digit code (Morocco)", () => {
-    expect(countryCodeFromE164("2125550123")).toBe("212");
-  });
-
-  it("returns null for a domestic (leading-0) number", () => {
-    expect(countryCodeFromE164("087721603004")).toBeNull();
-  });
-
-  it("returns null for short / empty input", () => {
-    expect(countryCodeFromE164("")).toBeNull();
-    expect(countryCodeFromE164("123456")).toBeNull();
-  });
-});
-
-describe("internationalizeDomesticPhone", () => {
-  it("converts an Indonesian domestic number to E.164", () => {
-    expect(
-      internationalizeDomesticPhone("087721603004", "6281234567890"),
-    ).toBe("6287721603004");
-  });
-
-  it("returns null for a number that is already international", () => {
-    expect(
-      internationalizeDomesticPhone("6287721603004", "6281234567890"),
-    ).toBeNull();
-  });
-
-  it("returns null when the business number country can't be derived", () => {
-    expect(internationalizeDomesticPhone("087721603004", "")).toBeNull();
-  });
-
-  it("returns null when the derived number is not valid E.164", () => {
-    // A domestic number that survives stripping but yields an invalid
-    // international form (too short) must not be produced.
-    expect(internationalizeDomesticPhone("04123", "6281234567890")).toBeNull();
   });
 });

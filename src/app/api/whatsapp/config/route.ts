@@ -87,7 +87,7 @@ export async function GET() {
 
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
-      .select('id, phone_number_id, access_token, status, display_phone_number')
+      .select('phone_number_id, access_token, status')
       .eq('account_id', accountId)
       .maybeSingle()
 
@@ -135,27 +135,6 @@ export async function GET() {
         phoneNumberId: config.phone_number_id,
         accessToken,
       })
-      // Backfill display_phone_number (migration 040) so the send path
-      // can internationalize domestic-format contact numbers. Best-effort
-      // — a failed write must not turn a healthy connection check into an
-      // error.
-      if (
-        phoneInfo?.display_phone_number &&
-        phoneInfo.display_phone_number !== config.display_phone_number
-      ) {
-        void supabaseAdmin()
-          .from('whatsapp_config')
-          .update({ display_phone_number: phoneInfo.display_phone_number })
-          .eq('id', config.id)
-          .then(({ error }: { error: unknown }) => {
-            if (error) {
-              console.warn(
-                '[whatsapp/config] display_phone_number backfill failed:',
-                (error as { message?: string })?.message ?? error,
-              )
-            }
-          })
-      }
       return NextResponse.json({ connected: true, phone_info: phoneInfo })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown Meta API error'
@@ -379,9 +358,6 @@ export async function POST(request: Request) {
       waba_id: waba_id || null,
       access_token: encryptedAccessToken,
       verify_token: encryptedVerifyToken,
-      // Migration 040 — stored so the send path can internationalize
-      // domestic-format contact numbers with the account's country code.
-      display_phone_number: phoneInfo?.display_phone_number ?? null,
       status: registrationError ? 'disconnected' : 'connected',
       connected_at: registrationError ? null : new Date().toISOString(),
       registered_at: registrationError ? null : registeredAt,
