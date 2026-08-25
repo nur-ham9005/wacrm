@@ -259,22 +259,17 @@ export default function JoinPage() {
               >
                 Try again
               </Button>
-              <Link href="/signup">
+              <Link href="/login">
                 <Button
                   variant="outline"
                   className="w-full border-border text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
-                  Create a new account instead
+                  Sign in
                 </Button>
               </Link>
             </>
           ) : (
             <>
-              <Link href="/signup">
-                <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
-                  Create a new account instead
-                </Button>
-              </Link>
               <Link href="/login">
                 <Button
                   variant="outline"

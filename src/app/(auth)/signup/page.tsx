@@ -15,7 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, Lock } from "lucide-react";
 
 // `useSearchParams` opts the component out of static prerendering
 // unless wrapped in Suspense — same pattern as /login.
@@ -48,6 +48,14 @@ function SignupPageInner() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    // Self-registration is closed — accounts are only created through
+    // an invitation. Signing up is only allowed when an invite token is
+    // present (the /join/<token> flow carries it in `?invite=`).
+    if (!inviteToken) {
+      setError("Pendaftaran ditutup. Buat akun hanya melalui undangan dari tim Trazt.");
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError("Passwords do not match");
@@ -120,6 +128,40 @@ function SignupPageInner() {
                 className="w-full border-border text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 Back to sign in
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Self-registration is closed. Without an invite token the signup
+  // form is not rendered at all — /signup only works when reached from
+  // an invitation link (/join/<token> → /signup?invite=<token>).
+  if (!inviteToken) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <Card className="w-full max-w-md border-border bg-card">
+          <CardHeader className="items-center text-center">
+            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
+              <Lock className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <CardTitle className="text-xl text-foreground">
+              Pendaftaran ditutup
+            </CardTitle>
+            <CardDescription className="text-muted-foreground">
+              Pendaftaran akun baru hanya melalui undangan dari tim Trazt.
+              Silakan hubungi admin untuk mendapatkan link undangan.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/login">
+              <Button
+                variant="outline"
+                className="w-full border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                Kembali ke login
               </Button>
             </Link>
           </CardContent>
