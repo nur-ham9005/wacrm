@@ -216,7 +216,10 @@ const TEXT_MESSAGE = {
   text: { body: 'hello' },
 }
 
-function inboundRequest(message: Record<string, unknown> = TEXT_MESSAGE) {
+function inboundRequest(
+  message: Record<string, unknown> = TEXT_MESSAGE,
+  contacts: unknown = [{ wa_id: '15551230000', profile: { name: 'Ada' } }],
+) {
   const body = {
     entry: [
       {
@@ -225,7 +228,7 @@ function inboundRequest(message: Record<string, unknown> = TEXT_MESSAGE) {
             field: 'messages',
             value: {
               metadata: { phone_number_id: 'pn-1' },
-              contacts: [{ wa_id: '15551230000', profile: { name: 'Ada' } }],
+              contacts,
               messages: [message],
             },
           },
@@ -239,8 +242,11 @@ function inboundRequest(message: Record<string, unknown> = TEXT_MESSAGE) {
   } as unknown as Request
 }
 
-async function runWebhook(message?: Record<string, unknown>) {
-  const res = await POST(inboundRequest(message))
+async function runWebhook(
+  message?: Record<string, unknown>,
+  contacts?: unknown,
+) {
+  const res = await POST(inboundRequest(message, contacts))
   // Drain the after() callback exactly as the runtime would.
   for (const cb of h.state.afterCallbacks) await cb()
   return res
@@ -313,6 +319,49 @@ describe('inbound webhook: idempotent insert (#367)', () => {
     expect(h.runAutomationsForTrigger).not.toHaveBeenCalled()
     expect(h.dispatchInboundToAiReply).not.toHaveBeenCalled()
     expect(h.dispatchWebhookEvent).not.toHaveBeenCalled()
+  })
+})
+
+describe('inbound webhook: contact without profile (#508)', () => {
+  it('persists the message when Meta omits the contact profile', async () => {
+    // Meta's Cloud API can deliver an inbound message whose contact
+    // entry has wa_id but no profile object. Previously the webhook
+    // crashed on contact.profile.name and dropped the message.
+    await runWebhook(
+      {
+        id: 'wamid.NOPROFILE1',
+        from: '15551230000',
+        timestamp: '1700000000',
+        type: 'text',
+        text: { body: 'hello' },
+      },
+      [{ wa_id: '15551230000' }],
+    )
+
+    expect(h.state.upsertCalls).toHaveLength(1)
+    expect(h.state.upsertCalls[0].row).toMatchObject({
+      content_type: 'text',
+      content_text: 'hello',
+    })
+    // Downstream fan-out still runs.
+    expect(h.state.rpcCalls).toHaveLength(1)
+    expect(h.dispatchWebhookEvent).toHaveBeenCalledTimes(1)
+  })
+
+  it('persists the message when the contacts array is absent', async () => {
+    await runWebhook(
+      {
+        id: 'wamid.NOCONTACTS1',
+        from: '15551230000',
+        timestamp: '1700000000',
+        type: 'text',
+        text: { body: 'hi' },
+      },
+      [],
+    )
+
+    expect(h.state.upsertCalls).toHaveLength(1)
+    expect(h.state.upsertCalls[0].row.content_text).toBe('hi')
   })
 })
 

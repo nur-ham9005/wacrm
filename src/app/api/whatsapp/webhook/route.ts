@@ -299,7 +299,9 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
 
       for (let i = 0; i < value.messages.length; i++) {
         const message = value.messages[i]
-        const contact = value.contacts[i] || value.contacts[0]
+        // Meta does not guarantee one contact per message — fall back to
+        // the first, and tolerate the whole array being absent.
+        const contact = value.contacts?.[i] ?? value.contacts?.[0]
 
         await processMessage(
           message,
@@ -574,7 +576,10 @@ async function handleReaction(
 
 async function processMessage(
   message: WhatsAppMessage,
-  contact: { profile: { name: string }; wa_id: string },
+  // `profile` is optional: Meta's Cloud API can deliver an inbound
+  // message whose contact entry carries `wa_id` but no `profile`
+  // object. The sender's name falls back to their phone number below.
+  contact: { profile?: { name?: string }; wa_id?: string } | undefined,
   // Tenancy. Resolved from the matched whatsapp_config row; every
   // contact / conversation / message row created downstream is
   // stamped with this so any member of the account can see it.
@@ -589,7 +594,7 @@ async function processMessage(
   mirrorMedia: boolean
 ) {
   const senderPhone = normalizePhone(message.from)
-  const contactName = contact.profile.name
+  const contactName = contact?.profile?.name ?? ''
 
   // Find or create contact
   const contactOutcome = await findOrCreateContact(
