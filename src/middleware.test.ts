@@ -31,11 +31,6 @@ vi.mock("@supabase/ssr", () => ({
         if (refreshedCookies.length) opts.cookies.setAll(refreshedCookies);
         return { data: { user: mockUser } };
       },
-      // Local-cookie presence check — the middleware's fallback so a
-      // transient getUser() miss doesn't bounce a signed-in user.
-      getSession: async () => ({
-        data: { session: mockUser ? { user: mockUser } : null },
-      }),
     },
   }),
 }));
