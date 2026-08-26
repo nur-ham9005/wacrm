@@ -103,6 +103,17 @@
       "newBroadcast": "New Broadcast",
       "newAutomation": "New Automation"
     },
+    "agents": {
+      "title": "Agent performance",
+      "empty": "No agents yet. Add agents in Settings → Team members.",
+      "agent": "Agent",
+      "assigned": "Assigned",
+      "open": "Open",
+      "resolved": "Resolved",
+      "messages": "Messages",
+      "avgResponse": "Med. response",
+      "minutes": "{m} min"
+    },
     "activityFeed": {
       "title": "Recent Activity",
       "viewAll": "View all →",
@@ -185,6 +196,12 @@
       "unassign": "Unassign",
       "noTeammates": "No teammates available",
       "me": " (me)",
+      "handoffTitle": "Transfer to {name}",
+      "handoffDesc": "Add an optional note so the receiving agent has context.",
+      "handoffNoteLabel": "Handoff note (optional)",
+      "handoffNotePlaceholder": "e.g. Already surveyed — just send the quote.",
+      "handoffConfirm": "Transfer",
+      "cancel": "Cancel",
       "noMessagesYet": "No messages yet",
       "sendTemplateHint": "Send a template to start the conversation",
       "selectConversation": "Select a conversation",

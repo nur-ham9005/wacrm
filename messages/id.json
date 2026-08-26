@@ -103,6 +103,17 @@
       "newBroadcast": "Siaran Baru",
       "newAutomation": "Otomasi Baru"
     },
+    "agents": {
+      "title": "Performa agent",
+      "empty": "Belum ada agent. Tambahkan agent di Pengaturan → Anggota tim.",
+      "agent": "Agent",
+      "assigned": "Ditugaskan",
+      "open": "Terbuka",
+      "resolved": "Selesai",
+      "messages": "Pesan",
+      "avgResponse": "Resp. median",
+      "minutes": "{m} mnt"
+    },
     "activityFeed": {
       "title": "Aktivitas Terbaru",
       "viewAll": "Lihat semua →",
@@ -185,6 +196,12 @@
       "unassign": "Lepaskan penugasan",
       "noTeammates": "Tidak ada rekan kerja tersedia",
       "me": " (saya)",
+      "handoffTitle": "Lempar ke {name}",
+      "handoffDesc": "Tambahkan catatan opsional agar agent penerima punya konteks.",
+      "handoffNoteLabel": "Catatan handoff (opsional)",
+      "handoffNotePlaceholder": "mis. Sudah disurvei — tinggal kirim penawaran.",
+      "handoffConfirm": "Lempar",
+      "cancel": "Batal",
       "noMessagesYet": "Belum ada pesan",
       "sendTemplateHint": "Kirim template untuk memulai percakapan",
       "selectConversation": "Pilih percakapan",

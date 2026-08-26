@@ -27,9 +27,11 @@ import {
   RefreshCw,
   PanelRightOpen,
   PanelRightClose,
+  Loader2,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { useTranslations } from "next-intl";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -39,6 +41,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { MessageBubble } from "./message-bubble";
 import { MessageActions } from "./message-actions";
 import { MediaLightbox } from "./media-lightbox";
@@ -168,13 +180,16 @@ export function MessageThread({
   const tTimer = useTranslations("Inbox.sessionTimer");
   const tQuote = useTranslations("Inbox.replyQuote");
 
-  const { user, accountRole } = useAuth();
+  const { user, accountRole, accountId } = useAuth();
   const { getPresence, getRow, now } = usePresence();
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
+  const [handoffTarget, setHandoffTarget] = useState<Profile | null>(null);
+  const [handoffNote, setHandoffNote] = useState("");
+  const [handoffSaving, setHandoffSaving] = useState(false);
   // Purely visual spin state for the manual-refresh button. The actual
   // refetch is fire-and-forget through `onRefresh` (which bumps the
   // parent's resyncToken); the 700ms spin is just feedback so the click
@@ -860,6 +875,33 @@ export function MessageThread({
     [conversation, onAssignChange],
   );
 
+  // Transfer to another agent with an optional handoff note, saved as a
+  // contact note so the receiving agent has context without re-reading.
+  const confirmHandoff = useCallback(async () => {
+    if (!conversation || !contact || !handoffTarget) return;
+    setHandoffSaving(true);
+    try {
+      await handleAssignChange(handoffTarget.user_id);
+      if (handoffNote.trim()) {
+        const supabase = createClient();
+        const { error } = await supabase.from("contact_notes").insert({
+          contact_id: contact.id,
+          account_id: accountId,
+          user_id: user?.id,
+          note_text: `↪ Handoff ke ${handoffTarget.full_name}: ${handoffNote.trim()}`,
+        });
+        if (error) {
+          console.error("Failed to save handoff note:", error);
+          toast.error("Failed to save handoff note");
+        }
+      }
+      setHandoffTarget(null);
+      setHandoffNote("");
+    } finally {
+      setHandoffSaving(false);
+    }
+  }, [conversation, contact, handoffTarget, handoffNote, accountId, user, handleAssignChange]);
+
   // Empty state — same WhatsApp-style doodle background as the active
   // thread below, so swapping between empty/selected doesn't change the
   // pattern under the user's eye.
@@ -1052,7 +1094,13 @@ export function MessageThread({
                   return (
                     <DropdownMenuItem
                       key={p.id}
-                      onClick={() => handleAssignChange(p.user_id)}
+                      onClick={() =>
+                        // Self-assign (claim) is instant; transferring to
+                        // someone else opens the handoff-note dialog.
+                        p.user_id === user?.id
+                          ? handleAssignChange(p.user_id)
+                          : setHandoffTarget(p)
+                      }
                       className={cn(
                         "text-sm",
                         isSelected ? "text-primary" : "text-popover-foreground"
@@ -1204,6 +1252,63 @@ export function MessageThread({
         onOpenChange={setTemplateModalOpen}
         onSelect={handleSendTemplate}
       />
+
+      {/* Handoff note — shown when transferring to a different agent. */}
+      <Dialog
+        open={handoffTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setHandoffTarget(null);
+            setHandoffNote("");
+          }
+        }}
+      >
+        <DialogContent className="bg-popover border-border sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-popover-foreground">
+              {t("handoffTitle", { name: handoffTarget?.full_name ?? "" })}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              {t("handoffDesc")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="handoff-note" className="text-muted-foreground">
+              {t("handoffNoteLabel")}
+            </Label>
+            <Textarea
+              id="handoff-note"
+              value={handoffNote}
+              onChange={(e) => setHandoffNote(e.target.value)}
+              placeholder={t("handoffNotePlaceholder")}
+              rows={3}
+              className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+            />
+          </div>
+          <DialogFooter className="bg-popover border-border">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setHandoffTarget(null);
+                setHandoffNote("");
+              }}
+              className="border-border text-muted-foreground hover:bg-muted"
+            >
+              {t("cancel")}
+            </Button>
+            <Button
+              onClick={confirmHandoff}
+              disabled={handoffSaving}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              {handoffSaving ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : null}
+              {t("handoffConfirm")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Full-size viewer for the thread's images/videos. Renders nothing
           until a bubble opens it. */}

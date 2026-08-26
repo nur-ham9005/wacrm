@@ -9,6 +9,7 @@ import {
 } from './date-utils'
 import type {
   ActivityItem,
+  AgentPerformanceRow,
   ConversationsSeriesPoint,
   MetricsBundle,
   PipelineDonutData,
@@ -395,4 +396,90 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
   return items
     .sort((a, b) => (a.at > b.at ? -1 : a.at < b.at ? 1 : 0))
     .slice(0, limit)
+}
+
+// --- 6. Per-agent performance ------------------------------------------
+
+export async function loadAgentPerformance(db: DB): Promise<AgentPerformanceRow[]> {
+  const { data: agents } = await db
+    .from('profiles')
+    .select('user_id, full_name')
+    .eq('account_role', 'agent')
+    .order('full_name')
+
+  if (!agents || agents.length === 0) return []
+
+  const agentIds = (agents as { user_id: string; full_name: string | null }[]).map(
+    (a) => a.user_id,
+  )
+
+  const { data: convs } = await db
+    .from('conversations')
+    .select('id, assigned_agent_id, status')
+    .in('assigned_agent_id', agentIds)
+  const convList = (convs ?? []) as Array<{
+    id: string
+    assigned_agent_id: string | null
+    status: string
+  }>
+
+  const assigned = new Map<string, number>()
+  const open = new Map<string, number>()
+  const resolved = new Map<string, number>()
+  for (const id of agentIds) {
+    assigned.set(id, 0)
+    open.set(id, 0)
+    resolved.set(id, 0)
+  }
+  for (const c of convList) {
+    const aid = c.assigned_agent_id
+    if (!aid) continue
+    assigned.set(aid, (assigned.get(aid) ?? 0) + 1)
+    if (c.status === 'closed') resolved.set(aid, (resolved.get(aid) ?? 0) + 1)
+    else open.set(aid, (open.get(aid) ?? 0) + 1)
+  }
+
+  const convIds = convList.map((c) => c.id)
+  const { data: msgs } =
+    convIds.length > 0
+      ? await db
+          .from('messages')
+          .select('conversation_id, sender_type, sender_id, created_at')
+          .in('conversation_id', convIds)
+          .order('created_at', { ascending: true })
+      : { data: [] }
+  const msgList = (msgs ?? []) as Array<{
+    conversation_id: string
+    sender_type: string
+    sender_id: string | null
+    created_at: string
+  }>
+
+  const sent = new Map<string, number>(agentIds.map((id) => [id, 0]))
+  const respDurations = new Map<string, number[]>(agentIds.map((id) => [id, []]))
+  const lastCustomerAt = new Map<string, number>()
+  for (const m of msgList) {
+    const t = new Date(m.created_at).getTime()
+    if (m.sender_type === 'customer') {
+      lastCustomerAt.set(m.conversation_id, t)
+    } else if (m.sender_type === 'agent' && m.sender_id) {
+      sent.set(m.sender_id, (sent.get(m.sender_id) ?? 0) + 1)
+      const cust = lastCustomerAt.get(m.conversation_id)
+      if (cust) respDurations.get(m.sender_id)?.push((t - cust) / 60000)
+    }
+  }
+
+  return (agents as { user_id: string; full_name: string | null }[]).map((a) => {
+    const durs = (respDurations.get(a.user_id) ?? []).sort((x, y) => x - y)
+    const median = durs.length > 0 ? durs[Math.floor(durs.length / 2)] : null
+    return {
+      user_id: a.user_id,
+      full_name: a.full_name ?? 'Unnamed',
+      assigned: assigned.get(a.user_id) ?? 0,
+      open: open.get(a.user_id) ?? 0,
+      resolved: resolved.get(a.user_id) ?? 0,
+      messagesSent: sent.get(a.user_id) ?? 0,
+      avgResponseMinutes: median !== null ? Math.round(median * 10) / 10 : null,
+    }
+  })
 }

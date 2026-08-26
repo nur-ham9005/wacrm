@@ -65,3 +65,18 @@ export interface ActivityItem {
   /** Optional deep-link for the whole row (not all items have a target). */
   href?: string
 }
+
+export interface AgentPerformanceRow {
+  user_id: string
+  full_name: string
+  /** Conversations currently assigned to this agent. */
+  assigned: number
+  /** Of those, still open (not closed). */
+  open: number
+  /** Assigned conversations that were closed. */
+  resolved: number
+  /** Outbound agent messages sent. */
+  messagesSent: number
+  /** Median first-response time in minutes (null when no data). */
+  avgResponseMinutes: number | null
+}
