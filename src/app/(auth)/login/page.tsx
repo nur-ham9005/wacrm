@@ -49,6 +49,26 @@ function LoginPageInner() {
     ? `/join/${encodeURIComponent(inviteToken)}`
     : "/dashboard";
 
+  // @supabase/ssr writes auth cookies through an ASYNC storage adapter,
+  // and signInWithPassword() can resolve before the cookie lands in
+  // document.cookie. On fast machines the write wins the race with the
+  // full-page navigation below; on slow mobile devices the navigation
+  // can leave first and the server never receives the auth cookie —
+  // the middleware bounces /dashboard back to /login, and the client
+  // recover redirect turns that into a redirect loop (>20 hops → Safari
+  // "cannot follow more than 20 directions"). Waiting for the cookie to
+  // actually appear fixes the race at its source.
+  async function waitForAuthCookie(timeoutMs = 5000): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (/(?:^|;\s*)sb-[^=;]*-auth-token=/.test(document.cookie)) {
+        return true;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return false;
+  }
+
   // Client-side complement to the middleware's server-side redirect of
   // signed-in users away from /login. Right after a successful
   // signInWithPassword the middleware's first /dashboard request can
@@ -93,6 +113,10 @@ function LoginPageInner() {
     // back to /login — which looks like the page "just refreshing"
     // instead of signing in (issue #365). Mirrors the deliberate full
     // reload the invite-accept flow already uses in join/[token].
+    // Waits for the auth cookie to land in document.cookie first (see
+    // waitForAuthCookie) so the navigation doesn't race the async write
+    // on slower devices.
+    await waitForAuthCookie();
     window.location.href = destination;
   };
 
