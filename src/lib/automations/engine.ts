@@ -22,6 +22,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from './admin-client'
 import { addContactTagIfAbsent } from '@/lib/contacts/tag-write'
 import { derivePresence } from '@/lib/presence'
+import { sendAgentIntro } from '@/lib/inbox/agent-intro'
 import { MAX_TAG_CHAIN_DEPTH, getTagChainDepth } from '@/lib/contacts/tag-chain'
 import { engineSendText, engineSendTemplate, engineSendInteractive } from './meta-send'
 import { validateInteractivePayload } from '@/lib/whatsapp/interactive'
@@ -530,11 +531,35 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         agentId = (await resolveRoundRobinAgent(db, args.automation.account_id)) ?? undefined
       }
       if (!agentId) return 'no agent resolved'
+
+      // Read the current assignee first so the intro only fires on a real
+      // change (skip re-assigning the same agent).
+      const { data: existing } = await db
+        .from('conversations')
+        .select('assigned_agent_id')
+        .eq('account_id', args.automation.account_id)
+        .eq('contact_id', args.contactId)
+        .maybeSingle()
+      const previousAgentId = existing?.assigned_agent_id ?? null
+
       await db
         .from('conversations')
         .update({ assigned_agent_id: agentId })
         .eq('account_id', args.automation.account_id)
         .eq('contact_id', args.contactId)
+
+      // Introduce the newly-assigned agent to the customer (best-effort).
+      if (args.context.conversation_id) {
+        await sendAgentIntro({
+          db,
+          accountId: args.automation.account_id,
+          conversationId: args.context.conversation_id,
+          contactId: args.contactId,
+          agentId,
+          previousAgentId,
+        })
+      }
+
       return `assigned to ${agentId}`
     }
 

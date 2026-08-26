@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { resolveRoundRobinAgent } from '@/lib/automations/engine';
+import { sendAgentIntro } from '@/lib/inbox/agent-intro';
 
 /**
  * POST /api/conversations/[id]/assign
@@ -33,7 +34,7 @@ export async function POST(
 
     const { data: conv } = await admin
       .from('conversations')
-      .select('id, account_id, assigned_agent_id')
+      .select('id, account_id, contact_id, assigned_agent_id')
       .eq('id', id)
       .maybeSingle();
 
@@ -72,6 +73,18 @@ export async function POST(
         { error: 'Failed to update assignment' },
         { status: 500 },
       );
+    }
+
+    // Introduce the newly-assigned agent to the customer (best-effort).
+    if (nextAssignee) {
+      await sendAgentIntro({
+        db: admin,
+        accountId: ctx.accountId,
+        conversationId: id,
+        contactId: conv.contact_id,
+        agentId: nextAssignee,
+        previousAgentId: currentAssignee,
+      });
     }
 
     return NextResponse.json({ assigned_agent_id: nextAssignee });
