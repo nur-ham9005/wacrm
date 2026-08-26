@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { useTranslations } from "next-intl";
+import { addContactTag, deleteContactTag } from "@/lib/contacts/tag-api";
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -34,6 +35,8 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [notes, setNotes] = useState<ContactNote[]>([]);
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [savingTagId, setSavingTagId] = useState<string | null>(null);
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
 
@@ -42,8 +45,8 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
     const supabase = createClient();
 
-    // Fetch deals, notes, and tags in parallel
-    const [dealsRes, notesRes, tagsRes] = await Promise.all([
+    // Fetch deals, notes, assigned tags, and all account tags in parallel
+    const [dealsRes, notesRes, tagsRes, allTagsRes] = await Promise.all([
       supabase
         .from("deals")
         .select("*, stage:pipeline_stages(*)")
@@ -58,10 +61,12 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
         .from("contact_tags")
         .select("id, tag_id, tags(*)")
         .eq("contact_id", contact.id),
+      supabase.from("tags").select("*").order("name"),
     ]);
 
     if (dealsRes.data) setDeals(dealsRes.data);
     if (notesRes.data) setNotes(notesRes.data);
+    setAllTags((allTagsRes.data as Tag[] | null) ?? []);
     if (tagsRes.data) {
       const mapped = tagsRes.data
         .filter((ct: Record<string, unknown>) => ct.tags)
@@ -118,6 +123,22 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     }
     setAddingNote(false);
   }, [contact, newNote, accountId]);
+
+  const handleToggleTag = useCallback(
+    async (tagId: string) => {
+      if (!contact || savingTagId) return;
+      setSavingTagId(tagId);
+      try {
+        const assigned = tags.some((t) => t.id === tagId);
+        if (assigned) await deleteContactTag(contact.id, tagId);
+        else await addContactTag(contact.id, tagId);
+        await fetchContactData();
+      } finally {
+        setSavingTagId(null);
+      }
+    },
+    [contact, savingTagId, tags, fetchContactData],
+  );
 
   if (!contact) {
     return (
@@ -181,30 +202,49 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
           {/* Divider */}
           <div className="my-4 border-t border-border" />
 
-          {/* Tags */}
+          {/* Tags — clickable chips to add/remove directly from chat */}
           <div>
             <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <TagIcon className="h-3 w-3" />
               {tSidebar("tags")}
             </div>
-            <div className="mt-2 flex flex-wrap gap-1">
-              {tags.length === 0 ? (
-                <p className="px-1 text-xs text-muted-foreground">{tSidebar("noTags")}</p>
-              ) : (
-                tags.map((tag) => (
-                  <span
-                    key={tag.contact_tag_id}
-                    className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                    style={{
-                      backgroundColor: `${tag.color}20`,
-                      color: tag.color,
-                    }}
-                  >
-                    {tag.name}
-                  </span>
-                ))
-              )}
-            </div>
+            {allTags.length === 0 ? (
+              <p className="mt-2 px-1 text-xs text-muted-foreground">
+                {tSidebar("noTags")}
+              </p>
+            ) : (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {allTags.map((tag) => {
+                  const selected = tags.some((t) => t.id === tag.id);
+                  const saving = savingTagId === tag.id;
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => handleToggleTag(tag.id)}
+                      disabled={savingTagId !== null}
+                      title={selected ? "Klik untuk menghapus tag" : "Klik untuk menandai"}
+                      className={cn(
+                        "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-medium transition-all disabled:opacity-60",
+                        selected
+                          ? "ring-1 ring-current"
+                          : "opacity-60 hover:opacity-100",
+                      )}
+                      style={{
+                        backgroundColor: `${tag.color}20`,
+                        color: tag.color,
+                      }}
+                    >
+                      {saving && (
+                        <span className="inline-block h-2 w-2 animate-spin rounded-full border border-current border-t-transparent" />
+                      )}
+                      {selected && <Check className="size-2.5" />}
+                      {tag.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Divider */}
