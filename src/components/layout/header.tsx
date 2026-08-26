@@ -50,7 +50,7 @@ import { useTranslations } from "next-intl";
 export function Header({ onOpenSidebar }: HeaderProps) {
   const t = useTranslations("Header");
   const pathname = usePathname();
-  const { profile, user, signOut, refreshProfile } = useAuth();
+  const { profile, user, signOut, refreshProfile, accountRole } = useAuth();
   const titleKey = getPageTitleKey(pathname);
   const [savingAvailability, setSavingAvailability] = useState(false);
 
@@ -95,20 +95,22 @@ export function Header({ onOpenSidebar }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">
-        {/* Self-service availability — always visible so agents can flip
-            Aktif/Libur without digging into menus. */}
-        <button
-          type="button"
-          onClick={() => void toggleAvailability(!(profile?.is_available ?? true))}
-          disabled={savingAvailability}
-          title={t("available") + " / " + t("onLeave")}
-          className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-60"
-        >
-          <span
-            className={`inline-block size-2 rounded-full ${profile?.is_available ? "bg-emerald-500" : "bg-amber-500"}`}
-          />
-          {profile?.is_available ? t("available") : t("onLeave")}
-        </button>
+        {/* Self-service availability — only for agents (owner/admin are not
+            in the round-robin, so they have nothing to toggle). */}
+        {accountRole === "agent" && (
+          <button
+            type="button"
+            onClick={() => void toggleAvailability(!(profile?.is_available ?? true))}
+            disabled={savingAvailability}
+            title={t("available") + " / " + t("onLeave")}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-60"
+          >
+            <span
+              className={`inline-block size-2 rounded-full ${profile?.is_available ? "bg-emerald-500" : "bg-amber-500"}`}
+            />
+            {profile?.is_available ? t("available") : t("onLeave")}
+          </button>
+        )}
 
         <ModeToggle />
 

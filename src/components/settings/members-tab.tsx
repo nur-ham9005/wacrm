@@ -458,38 +458,43 @@ export function MembersTab() {
                       inline. Items align to the start on mobile so the
                       role dropdown lines up under the avatar. */}
                   <div className="flex items-center gap-2 sm:gap-3">
-                    {/* Availability status (read-only; agents toggle their own
-                        via the header menu) + capacity (admin-only routing). */}
-                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <span
-                        className={`inline-block size-2 rounded-full ${member.is_available ? "bg-emerald-500" : "bg-amber-500"}`}
-                      />
-                      {member.is_available ? t('available') : t('onLeave')}
-                    </span>
-                    {canManageMembers && (
-                      <Select
-                        value={String(member.max_concurrent)}
-                        onValueChange={(v) =>
-                          handleAvailabilityUpdate(member, {
-                            max_concurrent: Number(v),
-                          })
-                        }
-                      >
-                        <SelectTrigger
-                          className="w-14 bg-muted border-border text-foreground"
-                          disabled={isBusy}
-                          title={t('capacity')}
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[1, 2, 3, 4, 5, 6].map((n) => (
-                            <SelectItem key={n} value={String(n)}>
-                              {n}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    {/* Availability status + capacity — agents only (owner/
+                        admin are not in the round-robin). Agents toggle
+                        their own status via the header; admin sets capacity. */}
+                    {member.role === "agent" && (
+                      <>
+                        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <span
+                            className={`inline-block size-2 rounded-full ${member.is_available ? "bg-emerald-500" : "bg-amber-500"}`}
+                          />
+                          {member.is_available ? t('available') : t('onLeave')}
+                        </span>
+                        {canManageMembers && (
+                          <Select
+                            value={String(member.max_concurrent)}
+                            onValueChange={(v) =>
+                              handleAvailabilityUpdate(member, {
+                                max_concurrent: Number(v),
+                              })
+                            }
+                          >
+                            <SelectTrigger
+                              className="w-14 bg-muted border-border text-foreground"
+                              disabled={isBusy}
+                              title={t('capacity')}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[1, 2, 3, 4, 5, 6].map((n) => (
+                                <SelectItem key={n} value={String(n)}>
+                                  {n}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </>
                     )}
 
                     {/* Role display / editor. Inline Select is admin+

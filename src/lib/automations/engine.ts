@@ -830,10 +830,11 @@ function waitMs(cfg: WaitStepConfig): number {
 
 /**
  * Fair round-robin for `assign_conversation` — resolves the account's
- * least-loaded available handler. Availability = `is_available` (owner/
- * admin/agent roles; viewers excluded) AND still under `max_concurrent`
- * open conversations. Ties break alphabetically by name so the rotation
- * is deterministic. Returns null when nobody is available/under capacity.
+ * least-loaded available *agent* (agent role only; owner/admin/viewer are
+ * excluded from auto-assignment). Availability = `is_available` AND still
+ * under `max_concurrent` open conversations. Ties break alphabetically by
+ * name so the rotation is deterministic. Returns null when no agent is
+ * available/under capacity.
  */
 async function resolveRoundRobinAgent(
   db: SupabaseClient,
@@ -844,7 +845,7 @@ async function resolveRoundRobinAgent(
     .select('user_id, full_name, max_concurrent')
     .eq('account_id', accountId)
     .eq('is_available', true)
-    .in('account_role', ['owner', 'admin', 'agent'])
+    .eq('account_role', 'agent')
   const eligible = (profiles ?? []) as Array<{
     user_id: string
     full_name?: string | null
