@@ -19,7 +19,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ModeToggle } from "@/components/layout/mode-toggle";
-import { Switch } from "@/components/ui/switch";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "dashboard",
@@ -70,7 +69,11 @@ export function Header({ onOpenSidebar }: HeaderProps) {
       .from("profiles")
       .update({ is_available: next })
       .eq("user_id", user.id);
-    if (!error) await refreshProfile();
+    if (error) {
+      console.error("[Header] availability update failed:", error.message);
+    } else {
+      await refreshProfile();
+    }
     setSavingAvailability(false);
   }
 
@@ -92,6 +95,21 @@ export function Header({ onOpenSidebar }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">
+        {/* Self-service availability — always visible so agents can flip
+            Aktif/Libur without digging into menus. */}
+        <button
+          type="button"
+          onClick={() => void toggleAvailability(!(profile?.is_available ?? true))}
+          disabled={savingAvailability}
+          title={t("available") + " / " + t("onLeave")}
+          className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-60"
+        >
+          <span
+            className={`inline-block size-2 rounded-full ${profile?.is_available ? "bg-emerald-500" : "bg-amber-500"}`}
+          />
+          {profile?.is_available ? t("available") : t("onLeave")}
+        </button>
+
         <ModeToggle />
 
         <DropdownMenu>
@@ -128,21 +146,6 @@ export function Header({ onOpenSidebar }: HeaderProps) {
             </p>
           </div>
           <DropdownMenuSeparator className="bg-border" />
-          <div
-            className="flex items-center justify-between gap-3 px-2 py-1.5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <span className="text-sm text-muted-foreground">
-              {profile?.is_available ? t("available") : t("onLeave")}
-            </span>
-            <Switch
-              checked={profile?.is_available ?? true}
-              onCheckedChange={(v) => {
-                void toggleAvailability(Boolean(v));
-              }}
-              disabled={savingAvailability}
-            />
-          </div>
           <DropdownMenuItem
             render={
               <Link
