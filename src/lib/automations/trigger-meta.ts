@@ -29,7 +29,7 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
   },
   tag_added: {
     label: 'Tag Added',
-    pillClass: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
+    pillClass: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
   },
   time_based: {
     label: 'Time-Based',

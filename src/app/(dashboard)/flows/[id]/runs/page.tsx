@@ -75,7 +75,7 @@ const STATUS_META: Record<
   },
   handed_off: {
     label: "Handed off",
-    classes: "border-amber-600/40 bg-amber-500/10 text-amber-300",
+    classes: "border-amber-600/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
     icon: UserPlus,
   },
   timed_out: {

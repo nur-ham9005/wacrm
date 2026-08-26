@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is([data-mode="dark"] *));
 
 @theme inline {
   --color-background: var(--background);
@@ -218,6 +218,16 @@ html[data-theme="rose"] {
 }
 
 @layer base {
+  :root {
+    /* `--font-mono` is mapped to var(--font-geist-mono) in @theme.
+       We don't bundle the Geist Mono webfont (self-hosted, offline),
+       so pin it to a portable system monospace stack. Without this the
+       variable is undefined and every `font-mono` utility silently
+       falls back to the inherited sans font. */
+    --font-geist-mono:
+      ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+      "Liberation Mono", "Courier New", monospace;
+  }
   * {
     @apply border-border outline-ring/50;
   }

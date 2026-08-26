@@ -171,7 +171,7 @@ function StatusBadge({ status, t }: { status: AutomationLog["status"], t: Return
     status === "success"
       ? "border-primary/30 bg-primary/10 text-primary"
       : status === "partial"
-      ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
+      ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
       : "border-red-500/30 bg-red-500/10 text-red-300"
   return (
     <span

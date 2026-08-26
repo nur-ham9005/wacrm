@@ -80,7 +80,7 @@ export function IssueLine({
   t?: ReturnType<typeof useTranslations>;
 }) {
   const tone =
-    issue.severity === "error" ? "text-red-300" : "text-amber-300";
+    issue.severity === "error" ? "text-red-300" : "text-amber-700 dark:text-amber-300";
   const iconTone =
     issue.severity === "error" ? "text-red-400" : "text-amber-400";
   const body = (
