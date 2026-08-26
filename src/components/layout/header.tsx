@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
+import { createClient } from "@/lib/supabase/client";
 import { LogOut, Menu, Settings as SettingsIcon, User } from "lucide-react";
 import {
   Avatar,
@@ -48,13 +50,29 @@ import { useTranslations } from "next-intl";
 export function Header({ onOpenSidebar }: HeaderProps) {
   const t = useTranslations("Header");
   const pathname = usePathname();
-  const { profile, signOut } = useAuth();
+  const { profile, user, signOut, refreshProfile } = useAuth();
   const titleKey = getPageTitleKey(pathname);
+  const [savingAvailability, setSavingAvailability] = useState(false);
 
   const initial =
     profile?.full_name?.charAt(0)?.toUpperCase() ??
     profile?.email?.charAt(0)?.toUpperCase() ??
     "U";
+
+  // Self-service availability toggle — flips the agent's own is_available
+  // (profiles RLS allows a user to update their own row). No admin needed.
+  async function toggleAvailability() {
+    if (!user) return;
+    const next = !(profile?.is_available ?? true);
+    setSavingAvailability(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("profiles")
+      .update({ is_available: next })
+      .eq("user_id", user.id);
+    if (!error) await refreshProfile();
+    setSavingAvailability(false);
+  }
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4 lg:px-6">
@@ -110,6 +128,16 @@ export function Header({ onOpenSidebar }: HeaderProps) {
             </p>
           </div>
           <DropdownMenuSeparator className="bg-border" />
+          <DropdownMenuItem
+            onSelect={toggleAvailability}
+            disabled={savingAvailability}
+            className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
+          >
+            <span
+              className={`mr-2 inline-block size-2 rounded-full ${profile?.is_available ? "bg-emerald-500" : "bg-amber-500"}`}
+            />
+            {profile?.is_available ? t("available") : t("onLeave")}
+          </DropdownMenuItem>
           <DropdownMenuItem
             render={
               <Link

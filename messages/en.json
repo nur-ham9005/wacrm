@@ -70,7 +70,9 @@
     "defaultAvatar": "Avatar",
     "menuProfile": "Profile",
     "menuSettings": "Settings",
-    "menuSignOut": "Sign out"
+    "menuSignOut": "Sign out",
+    "available": "Active",
+    "onLeave": "On leave"
   },
   "ModeToggle": {
     "switchMode": "Switch to {mode} mode"

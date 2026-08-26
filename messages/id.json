@@ -70,7 +70,9 @@
     "defaultAvatar": "Avatar",
     "menuProfile": "Profil",
     "menuSettings": "Pengaturan",
-    "menuSignOut": "Keluar"
+    "menuSignOut": "Keluar",
+    "available": "Aktif",
+    "onLeave": "Libur"
   },
   "ModeToggle": {
     "switchMode": "Ganti ke mode {mode}"
