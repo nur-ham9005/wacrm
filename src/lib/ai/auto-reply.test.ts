@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
   retrieveKnowledge: vi.fn(),
   generateReply: vi.fn(),
   engineSendText: vi.fn(),
+  resolveRoundRobinAgent: vi.fn(),
   state: {
     conv: null as Record<string, unknown> | null,
     autoResponders: [] as { id: string }[],
@@ -22,6 +23,9 @@ vi.mock('./context', () => ({ buildConversationContext: h.buildConversationConte
 vi.mock('./knowledge', () => ({ retrieveKnowledge: h.retrieveKnowledge }))
 vi.mock('./generate', () => ({ generateReply: h.generateReply }))
 vi.mock('@/lib/flows/meta-send', () => ({ engineSendText: h.engineSendText }))
+vi.mock('@/lib/automations/engine', () => ({
+  resolveRoundRobinAgent: h.resolveRoundRobinAgent,
+}))
 vi.mock('./admin-client', () => ({
   supabaseAdmin: () => ({
     from: (table: string) => {
@@ -96,6 +100,7 @@ beforeEach(() => {
   h.retrieveKnowledge.mockResolvedValue([])
   h.generateReply.mockResolvedValue({ text: 'Hello!', handoff: false })
   h.engineSendText.mockResolvedValue({ whatsapp_message_id: 'm1' })
+  h.resolveRoundRobinAgent.mockResolvedValue(null)
 })
 
 describe('dispatchInboundToAiReply — eligibility gates', () => {
@@ -208,5 +213,18 @@ describe('dispatchInboundToAiReply — handoff', () => {
       ai_autoreply_disabled: true,
       assigned_agent_id: 'agent-7',
     })
+    // A configured agent wins — round-robin is not consulted.
+    expect(h.resolveRoundRobinAgent).not.toHaveBeenCalled()
+  })
+
+  it('falls back to round-robin when no handoff agent is configured', async () => {
+    h.resolveRoundRobinAgent.mockResolvedValue('agent-5')
+    h.generateReply.mockResolvedValue({ text: '', handoff: true })
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.state.updatePayload).toMatchObject({
+      ai_autoreply_disabled: true,
+      assigned_agent_id: 'agent-5',
+    })
+    expect(h.resolveRoundRobinAgent).toHaveBeenCalled()
   })
 })

@@ -9,6 +9,7 @@ import { logAiUsage } from './usage'
 import { latestUserMessage } from './query'
 import { engineSendText } from '@/lib/flows/meta-send'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
+import { resolveRoundRobinAgent } from '@/lib/automations/engine'
 
 interface DispatchArgs {
   /** Tenancy key — drives config, contact, and whatsapp_config lookups. */
@@ -148,10 +149,15 @@ export async function dispatchInboundToAiReply(
         ai_autoreply_disabled: true,
         ai_handoff_summary: summary,
       }
-      // Only set the assignee when a target is configured AND the thread
-      // isn't already owned — never stomp an existing human assignment.
-      if (config.handoffAgentId && !conv.assigned_agent_id) {
-        update.assigned_agent_id = config.handoffAgentId
+      // Route the conversation to a human: a configured handoff agent if
+      // set, otherwise the round-robin resolver (same least-loaded logic
+      // as the Auto-assign Agent automation). Never stomp an existing
+      // human assignment.
+      if (!conv.assigned_agent_id) {
+        const target =
+          config.handoffAgentId ??
+          (await resolveRoundRobinAgent(db, accountId))
+        if (target) update.assigned_agent_id = target
       }
       await db.from('conversations').update(update).eq('id', conversationId)
       return
