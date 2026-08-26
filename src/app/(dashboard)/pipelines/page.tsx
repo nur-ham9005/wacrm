@@ -37,12 +37,12 @@ import { useTranslations } from "next-intl";
 // not on different copy.
 
 // Spec-defined seed — name and color per the product spec.
+// Default 4-stage funnel for a service business (plumbing).
 const SPEC_DEFAULT_STAGES = [
-  { name: "New Lead", color: "#3b82f6", position: 0 }, // blue
-  { name: "Qualified", color: "#eab308", position: 1 }, // yellow
-  { name: "Proposal Sent", color: "#f97316", position: 2 }, // orange
-  { name: "Negotiation", color: "#8b5cf6", position: 3 }, // purple
-  { name: "Won", color: "#22c55e", position: 4 }, // green
+  { name: "Chat Masuk", color: "#3b82f6", position: 0 }, // blue
+  { name: "Penawaran", color: "#f59e0b", position: 1 }, // amber
+  { name: "Pekerjaan Berjalan", color: "#8b5cf6", position: 2 }, // purple
+  { name: "Selesai", color: "#10b981", position: 3 }, // green
 ];
 
 export default function PipelinesPage() {
