@@ -62,6 +62,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { useTranslations } from 'next-intl';
 import { RequireRole } from '@/components/auth/require-role';
 import { useAuth } from '@/hooks/use-auth';
@@ -83,6 +84,8 @@ interface Member {
   avatar_url: string | null;
   role: AccountRole;
   joined_at: string;
+  is_available: boolean;
+  max_concurrent: number;
 }
 
 interface Invitation {
@@ -222,6 +225,52 @@ export function MembersTab() {
         ),
       );
       console.error('[MembersTab] role change error:', err);
+      toast.error('Could not reach the server');
+    } finally {
+      setPendingMemberAction(null);
+    }
+  }
+
+  async function handleAvailabilityUpdate(
+    member: Member,
+    patch: { is_available?: boolean; max_concurrent?: number },
+  ) {
+    setPendingMemberAction(member.user_id);
+    const prev = {
+      is_available: member.is_available,
+      max_concurrent: member.max_concurrent,
+    };
+    setMembers((prevList) =>
+      prevList.map((m) =>
+        m.user_id === member.user_id ? { ...m, ...patch } : m,
+      ),
+    );
+    try {
+      const res = await fetch(`/api/account/members/${member.user_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) {
+        setMembers((prevList) =>
+          prevList.map((m) =>
+            m.user_id === member.user_id ? { ...m, ...prev } : m,
+          ),
+        );
+        const payload = await res.json().catch(() => ({}));
+        toast.error(payload.error || 'Failed to update availability');
+        return;
+      }
+      toast.success(
+        t('availabilityUpdated', { name: member.full_name || t('unnamed') }),
+      );
+    } catch (err) {
+      setMembers((prevList) =>
+        prevList.map((m) =>
+          m.user_id === member.user_id ? { ...m, ...prev } : m,
+        ),
+      );
+      console.error('[MembersTab] availability update error:', err);
       toast.error('Could not reach the server');
     } finally {
       setPendingMemberAction(null);
@@ -410,6 +459,55 @@ export function MembersTab() {
                       inline. Items align to the start on mobile so the
                       role dropdown lines up under the avatar. */}
                   <div className="flex items-center gap-2 sm:gap-3">
+                    {/* Availability (libur/aktif) + capacity — admin+ only.
+                        Read-only for agents/viewers so they still see the
+                        roster status without being able to change it. */}
+                    {canManageMembers ? (
+                      <div
+                        className="flex items-center gap-2"
+                        title={t('capacity')}
+                      >
+                        <Switch
+                          checked={member.is_available}
+                          onCheckedChange={(v) =>
+                            handleAvailabilityUpdate(member, {
+                              is_available: v,
+                            })
+                          }
+                          disabled={isBusy}
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          {member.is_available ? t('available') : t('onLeave')}
+                        </span>
+                        <Select
+                          value={String(member.max_concurrent)}
+                          onValueChange={(v) =>
+                            handleAvailabilityUpdate(member, {
+                              max_concurrent: Number(v),
+                            })
+                          }
+                        >
+                          <SelectTrigger
+                            className="w-14 bg-muted border-border text-foreground"
+                            disabled={isBusy}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[1, 2, 3, 4, 5, 6].map((n) => (
+                              <SelectItem key={n} value={String(n)}>
+                                {n}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {member.is_available ? t('available') : t('onLeave')}
+                      </span>
+                    )}
+
                     {/* Role display / editor. Inline Select is admin+
                         only AND not allowed on the owner row (owner
                         changes go through transfer, which lands later). */}

@@ -830,9 +830,10 @@ function waitMs(cfg: WaitStepConfig): number {
 
 /**
  * Fair round-robin for `assign_conversation` — resolves the account's
- * least-loaded handler (owner/admin/agent; viewers excluded) by counting
- * their currently-open conversations. Ties break alphabetically by name
- * so the rotation is deterministic.
+ * least-loaded available handler. Availability = `is_available` (owner/
+ * admin/agent roles; viewers excluded) AND still under `max_concurrent`
+ * open conversations. Ties break alphabetically by name so the rotation
+ * is deterministic. Returns null when nobody is available/under capacity.
  */
 async function resolveRoundRobinAgent(
   db: SupabaseClient,
@@ -840,12 +841,14 @@ async function resolveRoundRobinAgent(
 ): Promise<string | null> {
   const { data: profiles } = await db
     .from('profiles')
-    .select('user_id, full_name')
+    .select('user_id, full_name, max_concurrent')
     .eq('account_id', accountId)
+    .eq('is_available', true)
     .in('account_role', ['owner', 'admin', 'agent'])
   const eligible = (profiles ?? []) as Array<{
     user_id: string
     full_name?: string | null
+    max_concurrent?: number | null
   }>
   if (eligible.length === 0) return null
 
@@ -862,12 +865,18 @@ async function resolveRoundRobinAgent(
     if (id && load.has(id)) load.set(id, (load.get(id) ?? 0) + 1)
   }
 
-  eligible.sort(
+  // Only agents still under their capacity are assignable; pick the
+  // least-loaded so the load distributes evenly across the team.
+  const candidates = eligible.filter(
+    (p) => (load.get(p.user_id) ?? 0) < (p.max_concurrent ?? 2),
+  )
+  if (candidates.length === 0) return null
+  candidates.sort(
     (a, b) =>
       (load.get(a.user_id) ?? 0) - (load.get(b.user_id) ?? 0) ||
       (a.full_name ?? '').localeCompare(b.full_name ?? ''),
   )
-  return eligible[0].user_id
+  return candidates[0].user_id
 }
 
 function interpolate(s: string, args: ExecuteArgs): string {

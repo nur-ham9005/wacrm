@@ -75,6 +75,10 @@ export interface AccountMember {
   avatar_url: string | null;
   role: AccountRole;
   joined_at: string;
+  /** Agent availability — false = on leave, excluded from round-robin. */
+  is_available: boolean;
+  /** Max open conversations before the agent stops receiving auto-assigns. */
+  max_concurrent: number;
 }
 
 /**
