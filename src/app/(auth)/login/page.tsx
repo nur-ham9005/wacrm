@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -44,6 +44,31 @@ function LoginPageInner() {
   const [loading, setLoading] = useState(false);
   const supabase = createClient();
 
+  // Where a successful (or already-present) session should land.
+  const destination = inviteToken
+    ? `/join/${encodeURIComponent(inviteToken)}`
+    : "/dashboard";
+
+  // Client-side complement to the middleware's server-side redirect of
+  // signed-in users away from /login. Right after a successful
+  // signInWithPassword the middleware's first /dashboard request can
+  // miss the freshly-written auth cookie and bounce back here — but the
+  // session IS present in the browser. Without this check the user sits
+  // on the login form until a manual refresh re-runs the middleware
+  // with settled cookies. getSession() reads cookies locally (no
+  // network), so this is instant and safe.
+  useEffect(() => {
+    let mounted = true;
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (mounted && session?.user) {
+        window.location.href = destination;
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [supabase, destination]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -68,9 +93,6 @@ function LoginPageInner() {
     // back to /login — which looks like the page "just refreshing"
     // instead of signing in (issue #365). Mirrors the deliberate full
     // reload the invite-accept flow already uses in join/[token].
-    const destination = inviteToken
-      ? `/join/${encodeURIComponent(inviteToken)}`
-      : "/dashboard";
     window.location.href = destination;
   };
 
