@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ModeToggle } from "@/components/layout/mode-toggle";
+import { Switch } from "@/components/ui/switch";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "dashboard",
@@ -61,9 +62,8 @@ export function Header({ onOpenSidebar }: HeaderProps) {
 
   // Self-service availability toggle — flips the agent's own is_available
   // (profiles RLS allows a user to update their own row). No admin needed.
-  async function toggleAvailability() {
+  async function toggleAvailability(next: boolean) {
     if (!user) return;
-    const next = !(profile?.is_available ?? true);
     setSavingAvailability(true);
     const supabase = createClient();
     const { error } = await supabase
@@ -128,16 +128,21 @@ export function Header({ onOpenSidebar }: HeaderProps) {
             </p>
           </div>
           <DropdownMenuSeparator className="bg-border" />
-          <DropdownMenuItem
-            onSelect={toggleAvailability}
-            disabled={savingAvailability}
-            className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
+          <div
+            className="flex items-center justify-between gap-3 px-2 py-1.5"
+            onClick={(e) => e.stopPropagation()}
           >
-            <span
-              className={`mr-2 inline-block size-2 rounded-full ${profile?.is_available ? "bg-emerald-500" : "bg-amber-500"}`}
+            <span className="text-sm text-muted-foreground">
+              {profile?.is_available ? t("available") : t("onLeave")}
+            </span>
+            <Switch
+              checked={profile?.is_available ?? true}
+              onCheckedChange={(v) => {
+                void toggleAvailability(Boolean(v));
+              }}
+              disabled={savingAvailability}
             />
-            {profile?.is_available ? t("available") : t("onLeave")}
-          </DropdownMenuItem>
+          </div>
           <DropdownMenuItem
             render={
               <Link
