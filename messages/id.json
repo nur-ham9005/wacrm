@@ -72,7 +72,7 @@
     "menuSettings": "Pengaturan",
     "menuSignOut": "Keluar",
     "available": "Aktif",
-    "onLeave": "Libur"
+    "onLeave": "Pergi"
   },
   "ModeToggle": {
     "switchMode": "Ganti ke mode {mode}"
@@ -1289,7 +1289,7 @@
       "removedToast": "{name} dihapus",
       "updatedToast": "{name} diperbarui menjadi {role}",
       "available": "Aktif",
-      "onLeave": "Libur",
+      "onLeave": "Pergi",
       "capacity": "Kapasitas chat",
       "availabilityUpdated": "Ketersediaan {name} diperbarui",
       "pendingInvitations": "Undangan tertunda",
