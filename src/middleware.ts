@@ -25,6 +25,20 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
+  // getUser() validates the access token against the Auth server, so it
+  // can miss transiently right after a sign-in — the cookie is present
+  // but the validation round-trip hasn't settled. That bounced the
+  // just-logged-in user straight back to /login (stuck on mobile, and
+  // the client-side recover redirect turned the bounce into a flash
+  // loop). getSession() reads the cookie locally (no network), so fall
+  // back to it for the presence check. This only gates ROUTING — every
+  // protected page/route still re-validates server-side via
+  // getCurrentAccount(), so a stale or forged cookie can't read data; it
+  // just stops being bounced back to the login form.
+  const hasSession =
+    Boolean(user) ||
+    Boolean((await supabase.auth.getSession()).data.session)
+
   // getUser() transparently refreshes an expired access token, which
   // ROTATES the refresh token and writes the new cookies onto
   // `supabaseResponse` via setAll() above. Any response we return in
@@ -48,7 +62,7 @@ export async function middleware(request: NextRequest) {
   // they can accept the invitation in one click. Without this,
   // a forwarded invite link to someone who's already signed in
   // would silently drop them on /dashboard.
-  if (user && (
+  if (hasSession && (
     request.nextUrl.pathname === '/login' ||
     request.nextUrl.pathname === '/signup' ||
     request.nextUrl.pathname === '/forgot-password'
@@ -71,14 +85,14 @@ export async function middleware(request: NextRequest) {
 
   // Protected pages - redirect to login if not authenticated
   const protectedPaths = ['/dashboard', '/inbox', '/contacts', '/pipelines', '/broadcasts', '/automations', '/settings']
-  if (!user && protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
+  if (!hasSession && protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return withRefreshedCookies(NextResponse.redirect(url))
   }
 
   // API routes that need auth (not webhooks)
-  if (!user && request.nextUrl.pathname.startsWith('/api/whatsapp/') &&
+  if (!hasSession && request.nextUrl.pathname.startsWith('/api/whatsapp/') &&
       !request.nextUrl.pathname.includes('/webhook')) {
     return withRefreshedCookies(
       NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
