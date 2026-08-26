@@ -1,4 +1,5 @@
 import { supabaseAdmin } from './admin-client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { loadAiConfig } from './config'
 import { buildConversationContext } from './context'
 import { retrieveKnowledge } from './knowledge'
@@ -10,6 +11,7 @@ import { latestUserMessage } from './query'
 import { engineSendText } from '@/lib/flows/meta-send'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { resolveRoundRobinAgent } from '@/lib/automations/engine'
+import { sendAgentIntro } from '@/lib/inbox/agent-intro'
 
 interface DispatchArgs {
   /** Tenancy key — drives config, contact, and whatsapp_config lookups. */
@@ -40,6 +42,39 @@ interface DispatchArgs {
  * reacting to a customer message that just landed — so no separate
  * window check is needed.
  */
+/**
+ * Route a conversation to a human: the configured handoff agent if set,
+ * otherwise the round-robin resolver (least-loaded available agent). Pauses
+ * the AI bot on the thread and introduces the agent to the customer.
+ * Best-effort — failures are logged inside `sendAgentIntro`, never thrown.
+ */
+async function assignToHuman(
+  db: SupabaseClient,
+  opts: {
+    accountId: string
+    conversationId: string
+    contactId: string
+    handoffAgentId: string | null
+    previousAgentId: string | null
+  },
+): Promise<void> {
+  const target =
+    opts.handoffAgentId ?? (await resolveRoundRobinAgent(db, opts.accountId))
+  if (!target || target === opts.previousAgentId) return
+  await db
+    .from('conversations')
+    .update({ assigned_agent_id: target, ai_autoreply_disabled: true })
+    .eq('id', opts.conversationId)
+  await sendAgentIntro({
+    db,
+    accountId: opts.accountId,
+    conversationId: opts.conversationId,
+    contactId: opts.contactId,
+    agentId: target,
+    previousAgentId: opts.previousAgentId,
+  })
+}
+
 export async function dispatchInboundToAiReply(
   args: DispatchArgs,
 ): Promise<void> {
@@ -76,9 +111,20 @@ export async function dispatchInboundToAiReply(
     if (convErr || !conv) return
     if (conv.assigned_agent_id) return // a human owns this thread
     if (conv.ai_autoreply_disabled) return // handed off / turned off here
-    // Cheap early-out; the authoritative cap check is the atomic claim
-    // below (this read can race a concurrent inbound).
-    if (conv.ai_reply_count >= config.autoReplyMaxPerConversation) return
+    // Quota reached — hand the thread to a human via round-robin (the
+    // authoritative cap check is the atomic claim below; this read can
+    // race a concurrent inbound, but re-running the assignment here is
+    // idempotent enough to be safe).
+    if (conv.ai_reply_count >= config.autoReplyMaxPerConversation) {
+      await assignToHuman(db, {
+        accountId,
+        conversationId,
+        contactId,
+        handoffAgentId: config.handoffAgentId,
+        previousAgentId: conv.assigned_agent_id ?? null,
+      })
+      return
+    }
 
     const messages = await buildConversationContext(db, conversationId)
     if (messages.length === 0) return
@@ -135,31 +181,29 @@ export async function dispatchInboundToAiReply(
 
     if (handoff || !text) {
       // The model can't (or shouldn't) answer — stop auto-replying on
-      // this thread and hand it to a human. We (a) pause the bot here
-      // (sticky until re-enabled), (b) route the conversation to the
-      // configured handoff agent — null leaves it in the shared queue —
-      // and (c) leave a short internal note so whoever picks it up has
-      // context. Assigning fires the `on_conversation_assigned` trigger,
-      // which notifies the agent.
+      // this thread and hand it to a human. We pause the bot (sticky
+      // until re-enabled), leave a short internal note, then route via
+      // `assignToHuman` (configured agent or round-robin) + introduce
+      // the agent. Assigning fires `on_conversation_assigned`, which
+      // notifies the agent.
       const summary = buildHandoffSummary({
         messages,
         replyCount: conv.ai_reply_count ?? 0,
       })
-      const update: Record<string, unknown> = {
-        ai_autoreply_disabled: true,
-        ai_handoff_summary: summary,
-      }
-      // Route the conversation to a human: a configured handoff agent if
-      // set, otherwise the round-robin resolver (same least-loaded logic
-      // as the Auto-assign Agent automation). Never stomp an existing
-      // human assignment.
-      if (!conv.assigned_agent_id) {
-        const target =
-          config.handoffAgentId ??
-          (await resolveRoundRobinAgent(db, accountId))
-        if (target) update.assigned_agent_id = target
-      }
-      await db.from('conversations').update(update).eq('id', conversationId)
+      await db
+        .from('conversations')
+        .update({
+          ai_autoreply_disabled: true,
+          ai_handoff_summary: summary,
+        })
+        .eq('id', conversationId)
+      await assignToHuman(db, {
+        accountId,
+        conversationId,
+        contactId,
+        handoffAgentId: config.handoffAgentId,
+        previousAgentId: conv.assigned_agent_id ?? null,
+      })
       return
     }
 

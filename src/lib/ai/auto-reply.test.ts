@@ -9,6 +9,7 @@ const h = vi.hoisted(() => ({
   generateReply: vi.fn(),
   engineSendText: vi.fn(),
   resolveRoundRobinAgent: vi.fn(),
+  sendAgentIntro: vi.fn(),
   state: {
     conv: null as Record<string, unknown> | null,
     autoResponders: [] as { id: string }[],
@@ -25,6 +26,9 @@ vi.mock('./generate', () => ({ generateReply: h.generateReply }))
 vi.mock('@/lib/flows/meta-send', () => ({ engineSendText: h.engineSendText }))
 vi.mock('@/lib/automations/engine', () => ({
   resolveRoundRobinAgent: h.resolveRoundRobinAgent,
+}))
+vi.mock('@/lib/inbox/agent-intro', () => ({
+  sendAgentIntro: h.sendAgentIntro,
 }))
 vi.mock('./admin-client', () => ({
   supabaseAdmin: () => ({
@@ -101,6 +105,7 @@ beforeEach(() => {
   h.generateReply.mockResolvedValue({ text: 'Hello!', handoff: false })
   h.engineSendText.mockResolvedValue({ whatsapp_message_id: 'm1' })
   h.resolveRoundRobinAgent.mockResolvedValue(null)
+  h.sendAgentIntro.mockResolvedValue(undefined)
 })
 
 describe('dispatchInboundToAiReply — eligibility gates', () => {
@@ -226,5 +231,21 @@ describe('dispatchInboundToAiReply — handoff', () => {
       assigned_agent_id: 'agent-5',
     })
     expect(h.resolveRoundRobinAgent).toHaveBeenCalled()
+  })
+
+  it('auto-assigns via round-robin when the reply quota is reached', async () => {
+    h.state.conv = {
+      assigned_agent_id: null,
+      ai_autoreply_disabled: false,
+      ai_reply_count: 3,
+    }
+    h.resolveRoundRobinAgent.mockResolvedValue('agent-4')
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.resolveRoundRobinAgent).toHaveBeenCalled()
+    expect(h.sendAgentIntro).toHaveBeenCalledWith(
+      expect.objectContaining({ agentId: 'agent-4' }),
+    )
+    // No LLM reply was generated or sent — it handed straight to a human.
+    expect(h.engineSendText).not.toHaveBeenCalled()
   })
 })
