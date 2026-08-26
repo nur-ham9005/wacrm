@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     // still delivered a real WhatsApp message to the customer and merely
     // failed to record it (surfacing as "sent to Meta but failed to save
     // to DB"). RLS can't un-send that, so the role check belongs here.
-    const { supabase, accountId, userId } = await requireRole('agent')
+    const { supabase, accountId, userId, role } = await requireRole('agent')
 
     // Per-user rate limit. Bucket key is scoped to this route so
     // `/broadcast` has an independent budget.
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
     if (conversationIdInput) {
       const { data, error: convError } = await supabase
         .from('conversations')
-        .select('id')
+        .select('id, assigned_agent_id')
         .eq('id', conversationIdInput)
         .eq('account_id', accountId)
         .single()
@@ -108,6 +108,21 @@ export async function POST(request: Request) {
           { status: 404 }
         )
       }
+
+      // Assigned conversations are reply-locked to their agent: another
+      // agent can view the thread but not send into it. Owner/admin can
+      // always reply regardless of assignment.
+      if (
+        role === 'agent' &&
+        data.assigned_agent_id &&
+        data.assigned_agent_id !== userId
+      ) {
+        return NextResponse.json(
+          { error: 'This conversation is assigned to another agent' },
+          { status: 403 }
+        )
+      }
+
       conversationId = data.id
     } else {
       // contact_id path: verify the contact is in this account first so a

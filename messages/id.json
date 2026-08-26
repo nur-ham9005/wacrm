@@ -203,6 +203,7 @@
       "sessionExpiredHint": "Sesi 24 jam telah kedaluwarsa. Gunakan template untuk terhubung kembali.",
       "templates": "Template",
       "readOnlyPlaceholder": "Hanya-baca — penonton dapat melihat tetapi tidak membalas",
+      "assignedToOtherPlaceholder": "Ditugaskan ke agent lain — Anda tidak dapat membalas",
       "sessionExpiredPlaceholder": "Sesi kedaluwarsa - gunakan template",
       "typeMessagePlaceholder": "Ketik pesan... (Shift+Enter untuk baris baru)",
       "readOnlyTitle": "Hanya-baca — peran Anda tidak dapat mengirim pesan",

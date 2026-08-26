@@ -119,6 +119,13 @@ interface MessageComposerProps {
   onOpenTemplates: () => void;
   replyTo?: ReplyDraft | null;
   onClearReply?: () => void;
+  /** Whether the current user may reply to this specific conversation
+   *  (assignment-based). Defaults to true; the role check is applied on
+   *  top of it below. */
+  canReply?: boolean;
+  /** True when the caller is an agent and the conversation is assigned to
+   *  a different agent — drives a clearer read-only hint. */
+  assignedToOther?: boolean;
 }
 
 function formatDuration(seconds: number): string {
@@ -141,6 +148,8 @@ export function MessageComposer({
   onOpenTemplates,
   replyTo,
   onClearReply,
+  canReply = true,
+  assignedToOther = false,
 }: MessageComposerProps) {
   const t = useTranslations("Inbox.composer");
 
@@ -195,7 +204,9 @@ export function MessageComposer({
   // Viewers (read-only role) can browse the inbox but never send.
   // For solo users this is always true — single-owner accounts pass
   // every capability — so the disabled branch is a no-op there.
-  const canSend = useCan("send-messages");
+  // The assignment gate (`canReply`) additionally locks an agent out of
+  // a conversation assigned to someone else.
+  const canSend = useCan("send-messages") && canReply;
   const readOnly = !canSend;
   // Media (like free-form text) is only allowed inside the 24h window.
   const inputsDisabled = readOnly || sessionExpired;
@@ -833,7 +844,9 @@ export function MessageComposer({
               onKeyDown={handleKeyDown}
               placeholder={
                 readOnly
-                  ? t("readOnlyPlaceholder")
+                  ? assignedToOther
+                    ? t("assignedToOtherPlaceholder")
+                    : t("readOnlyPlaceholder")
                   : sessionExpired
                     ? t("sessionExpiredPlaceholder")
                     : t("typeMessagePlaceholder")

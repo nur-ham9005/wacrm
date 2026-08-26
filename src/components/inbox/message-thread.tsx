@@ -168,7 +168,7 @@ export function MessageThread({
   const tTimer = useTranslations("Inbox.sessionTimer");
   const tQuote = useTranslations("Inbox.replyQuote");
 
-  const { user } = useAuth();
+  const { user, accountRole } = useAuth();
   const { getPresence, getRow, now } = usePresence();
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -890,6 +890,19 @@ export function MessageThread({
     ? (currentAssignee?.full_name ?? t("assigned"))
     : t("assign");
 
+  // Agents may only reply to a conversation they're assigned to (or one
+  // that's unassigned); owner/admin can always reply. Mirrors the server
+  // check in /api/whatsapp/send.
+  const canReply =
+    accountRole === "owner" ||
+    accountRole === "admin" ||
+    !assignedAgentId ||
+    assignedAgentId === user?.id;
+
+  // Distinct hint for the composer: an agent locked out by assignment.
+  const assignedToOther =
+    accountRole === "agent" && !!assignedAgentId && assignedAgentId !== user?.id;
+
   return (
     // `min-w-0` is load-bearing: the page already puts min-w-0 on the
     // thread's flex *wrapper* (issue #165), but this root keeps the
@@ -1182,6 +1195,8 @@ export function MessageThread({
         onOpenTemplates={handleOpenTemplates}
         replyTo={replyTo}
         onClearReply={() => setReplyTo(null)}
+        canReply={canReply}
+        assignedToOther={assignedToOther}
       />
 
       <TemplatePicker
