@@ -18,6 +18,7 @@ import type {
   CreateDealStepConfig,
   AssignConversationStepConfig,
 } from '@/types'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from './admin-client'
 import { addContactTagIfAbsent } from '@/lib/contacts/tag-write'
 import { MAX_TAG_CHAIN_DEPTH, getTagChainDepth } from '@/lib/contacts/tag-chain'
@@ -525,15 +526,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       if (!args.contactId) throw new Error('assign_conversation needs a contact')
       let agentId = cfg.agent_id
       if (cfg.mode === 'round_robin') {
-        // Pick any member of the account. The existing implementation
-        // only ever returned the automation's author; preserving that
-        // shape until a real round-robin algorithm replaces it.
-        const { data: profiles } = await db
-          .from('profiles')
-          .select('user_id')
-          .eq('account_id', args.automation.account_id)
-          .limit(1)
-        agentId = profiles?.[0]?.user_id
+        agentId = (await resolveRoundRobinAgent(db, args.automation.account_id)) ?? undefined
       }
       if (!agentId) return 'no agent resolved'
       await db
@@ -833,6 +826,48 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
 function waitMs(cfg: WaitStepConfig): number {
   const unitMs = cfg.unit === 'days' ? 86_400_000 : cfg.unit === 'hours' ? 3_600_000 : 60_000
   return Math.max(1_000, cfg.amount * unitMs)
+}
+
+/**
+ * Fair round-robin for `assign_conversation` — resolves the account's
+ * least-loaded handler (owner/admin/agent; viewers excluded) by counting
+ * their currently-open conversations. Ties break alphabetically by name
+ * so the rotation is deterministic.
+ */
+async function resolveRoundRobinAgent(
+  db: SupabaseClient,
+  accountId: string,
+): Promise<string | null> {
+  const { data: profiles } = await db
+    .from('profiles')
+    .select('user_id, full_name')
+    .eq('account_id', accountId)
+    .in('account_role', ['owner', 'admin', 'agent'])
+  const eligible = (profiles ?? []) as Array<{
+    user_id: string
+    full_name?: string | null
+  }>
+  if (eligible.length === 0) return null
+
+  const { data: convs } = await db
+    .from('conversations')
+    .select('assigned_agent_id')
+    .eq('account_id', accountId)
+    .in('assigned_agent_id', eligible.map((p) => p.user_id))
+    .neq('status', 'closed')
+
+  const load = new Map<string, number>(eligible.map((p) => [p.user_id, 0]))
+  for (const c of (convs ?? []) as Array<{ assigned_agent_id?: string | null }>) {
+    const id = c.assigned_agent_id
+    if (id && load.has(id)) load.set(id, (load.get(id) ?? 0) + 1)
+  }
+
+  eligible.sort(
+    (a, b) =>
+      (load.get(a.user_id) ?? 0) - (load.get(b.user_id) ?? 0) ||
+      (a.full_name ?? '').localeCompare(b.full_name ?? ''),
+  )
+  return eligible[0].user_id
 }
 
 function interpolate(s: string, args: ExecuteArgs): string {
