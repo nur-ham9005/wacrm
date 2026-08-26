@@ -9,9 +9,12 @@ import {
 } from "@/lib/inbox/conversations";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
-import { Search, ChevronDown, X } from "lucide-react";
+import { Search, ChevronDown, X, Clock, UserPlus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
+import { useAuth } from "@/hooks/use-auth";
+import { usePresence } from "@/hooks/use-presence";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -34,7 +37,13 @@ interface ConversationListProps {
    * or the tab was throttled. Optional so existing callers keep working.
    */
   resyncToken?: number;
+  /** Update a conversation's assignment in the parent (after a claim). */
+  onAssignChange?: (conversationId: string, agentId: string | null) => void;
 }
+
+/** Conversations older than this (with an unread customer message) get a
+ *  "waiting long" indicator so nobody is left hanging. */
+const WAIT_MS = 10 * 60_000;
 
 const STATUS_COLORS: Record<ConversationStatus, string> = {
   open: "bg-primary",
@@ -44,7 +53,7 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
 
 
 
-type InboxFilter = ConversationStatus | "all" | "unread";
+type InboxFilter = ConversationStatus | "all" | "unread" | "unassigned";
 
 export function ConversationList({
   activeConversationId,
@@ -52,11 +61,15 @@ export function ConversationList({
   conversations,
   onConversationsLoaded,
   resyncToken = 0,
+  onAssignChange,
 }: ConversationListProps) {
   const t = useTranslations("Inbox.conversationList");
+  const { user } = useAuth();
+  const { now } = usePresence();
   
   const FILTER_OPTIONS: { label: string; value: InboxFilter }[] = useMemo(() => [
     { label: t("filterAll"), value: "all" },
+    { label: t("filterUnassigned"), value: "unassigned" },
     { label: t("filterUnread"), value: "unread" },
     { label: t("filterOpen"), value: "open" },
     { label: t("filterPending"), value: "pending" },
@@ -163,6 +176,8 @@ export function ConversationList({
 
     if (filter === "unread") {
       result = result.filter((c) => c.unread_count > 0);
+    } else if (filter === "unassigned") {
+      result = result.filter((c) => !c.assigned_agent_id);
     } else if (filter !== "all") {
       result = result.filter((c) => c.status === filter);
     }
@@ -215,6 +230,26 @@ export function ConversationList({
       onSelect(conv);
     },
     [onSelect]
+  );
+
+  // Claim an unassigned conversation for the current agent.
+  const handleClaim = useCallback(
+    async (conv: Conversation) => {
+      if (!user) return;
+      const res = await fetch(`/api/conversations/${conv.id}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agent_id: user.id }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        toast.error(payload.error || t("claimFailed"));
+        return;
+      }
+      const data = (await res.json()) as { assigned_agent_id: string | null };
+      onAssignChange?.(conv.id, data.assigned_agent_id ?? null);
+    },
+    [user, onAssignChange, t]
   );
 
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
@@ -413,6 +448,9 @@ export function ConversationList({
                 conversation={conv}
                 isActive={conv.id === activeConversationId}
                 onSelect={handleSelect}
+                onClaim={handleClaim}
+                currentUserId={user?.id}
+                now={now}
                 t={t}
               />
             ))}
@@ -427,6 +465,9 @@ interface ConversationItemProps {
   conversation: Conversation;
   isActive: boolean;
   onSelect: (conversation: Conversation) => void;
+  onClaim: (conversation: Conversation) => void;
+  currentUserId?: string;
+  now: number;
   t: ReturnType<typeof useTranslations>;
 }
 
@@ -434,6 +475,9 @@ function ConversationItem({
   conversation,
   isActive,
   onSelect,
+  onClaim,
+  currentUserId,
+  now,
   t,
 }: ConversationItemProps) {
   const contact = conversation.contact;
@@ -449,6 +493,15 @@ function ConversationItem({
         addSuffix: false,
       })
     : "";
+
+  // "Waiting long": an unread customer message that's been sitting >10 min.
+  const waiting =
+    conversation.unread_count > 0 &&
+    !!conversation.last_message_at &&
+    now - new Date(conversation.last_message_at).getTime() > WAIT_MS;
+
+  // Unassigned + a signed-in agent → show a Claim button.
+  const canClaim = !conversation.assigned_agent_id && !!currentUserId;
 
   return (
     <button
@@ -484,6 +537,14 @@ function ConversationItem({
             {conversation.last_message_text || t("noMessagesYet")}
           </p>
           <div className="flex shrink-0 items-center gap-1.5">
+            {waiting && (
+              <span
+                title={t("waitingLong")}
+                className="flex h-4 items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300"
+              >
+                <Clock className="h-3 w-3" />
+              </span>
+            )}
             {conversation.unread_count > 0 && (
               <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
                 {conversation.unread_count}
@@ -498,6 +559,19 @@ function ConversationItem({
             />
           </div>
         </div>
+        {canClaim && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClaim(conversation);
+            }}
+            className="mt-1.5 inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            <UserPlus className="h-3 w-3" />
+            {t("claim")}
+          </button>
+        )}
       </div>
     </button>
   );

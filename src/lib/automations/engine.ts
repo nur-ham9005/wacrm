@@ -21,6 +21,7 @@ import type {
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from './admin-client'
 import { addContactTagIfAbsent } from '@/lib/contacts/tag-write'
+import { derivePresence } from '@/lib/presence'
 import { MAX_TAG_CHAIN_DEPTH, getTagChainDepth } from '@/lib/contacts/tag-chain'
 import { engineSendText, engineSendTemplate, engineSendInteractive } from './meta-send'
 import { validateInteractivePayload } from '@/lib/whatsapp/interactive'
@@ -869,6 +870,30 @@ export async function resolveRoundRobinAgent(
     if (id && load.has(id)) load.set(id, (load.get(id) ?? 0) + 1)
   }
 
+  // Prefer online agents so real-time chats land on whoever's at their
+  // desk; load still breaks ties within the same presence band.
+  const { data: presence } = await db
+    .from('member_presence')
+    .select('user_id, status, last_seen_at')
+    .in('user_id', eligible.map((p) => p.user_id))
+  const presenceByUser = new Map<string, 'online' | 'away' | 'offline'>()
+  for (const row of (presence ?? []) as Array<{
+    user_id: string
+    status: 'online' | 'away'
+    last_seen_at: string | null
+  }>) {
+    presenceByUser.set(
+      row.user_id,
+      derivePresence(row.status, row.last_seen_at, Date.now()),
+    )
+  }
+  const presenceRank = (p: { user_id: string }) => {
+    const s = presenceByUser.get(p.user_id)
+    if (s === 'online') return 0
+    if (s === 'away') return 1
+    return 2 // offline / no row
+  }
+
   // Only agents still under their capacity are assignable; pick the
   // least-loaded so the load distributes evenly across the team.
   const candidates = eligible.filter(
@@ -879,6 +904,7 @@ export async function resolveRoundRobinAgent(
   if (candidates.length === 0) return null
   candidates.sort(
     (a, b) =>
+      presenceRank(a) - presenceRank(b) ||
       (load.get(a.user_id) ?? 0) - (load.get(b.user_id) ?? 0) ||
       (a.full_name ?? '').localeCompare(b.full_name ?? ''),
   )
