@@ -21,6 +21,7 @@ import {
   Sparkles,
   Plus,
   MessageSquareDashed,
+  MessageSquare,
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -155,6 +156,13 @@ export function MessageComposer({
   const [savingQuickReply, setSavingQuickReply] = useState(false);
   const [quickReplyOpen, setQuickReplyOpen] = useState(false);
 
+  // Slash-command ("/") quick replies — WhatsApp Business-style. The
+  // account's quick replies are fetched once and filtered as the agent
+  // types after the "/". `slashIndex` is the keyboard-selected row.
+  const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
+  const [slashFetched, setSlashFetched] = useState(false);
+  const [slashIndex, setSlashIndex] = useState(0);
+
   // Media attachment state. `draft` holds an uploaded-but-not-yet-sent
   // attachment; `busy` covers the upload/transcode window.
   const [draft, setDraft] = useState<MediaDraft | null>(null);
@@ -236,16 +244,6 @@ export function MessageComposer({
     }
   }, [text, sending, sessionExpired, onSend, replyTo?.id]);
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
-      }
-    },
-    [handleSend]
-  );
-
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       setText(e.target.value);
@@ -253,6 +251,48 @@ export function MessageComposer({
     },
     [adjustHeight]
   );
+
+  // ---- Slash-command ("/") quick replies -----------------------------
+
+  // Active when the text ends with "/" or "/<query>" at the start or
+  // after whitespace (a "command position"): "hello /harga". Typing more
+  // after the "/" filters the list live; the query is what follows it.
+  const slashMatch = text.match(/(?:^|\s)\/(\S*)$/);
+  const slashActive = Boolean(slashMatch);
+  const slashQuery = slashMatch?.[1] ?? "";
+
+  const slashResults = quickReplies.filter((qr) => {
+    if (!slashQuery) return true;
+    return `${qr.title} ${qr.content_text ?? ""}`
+      .toLowerCase()
+      .includes(slashQuery.toLowerCase());
+  });
+
+  // Fetch the account's quick replies once (lightweight) so the "/"
+  // dropdown has something to show.
+  useEffect(() => {
+    if (slashFetched) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/quick-replies", { cache: "no-store" });
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok) {
+          setQuickReplies((data.quick_replies as QuickReply[]) ?? []);
+        }
+      } finally {
+        if (!cancelled) setSlashFetched(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [slashFetched]);
+
+  // Reset the keyboard selection whenever the command or query changes.
+  useEffect(() => {
+    setSlashIndex(0);
+  }, [slashActive, slashQuery]);
 
   // Ask the AI assistant for a suggested reply and drop it into the
   // composer for the agent to edit + send. Read-only server-side —
@@ -355,20 +395,24 @@ export function MessageComposer({
   }, [interactivePayload, t]);
 
   // A picked quick reply: text fills the composer; interactive opens the
-  // builder pre-filled so the agent can tweak before sending.
-  const handlePickQuickReply = useCallback(
-    (qr: QuickReply) => {
-      setQuickReplyOpen(false);
+  // builder pre-filled so the agent can tweak before sending. When
+  // `replaceCommand` is true the current slash-command ("/query") in the
+  // draft is swapped for the reply instead of appending.
+  const applyQuickReplyBody = useCallback(
+    (qr: QuickReply, replaceCommand: boolean) => {
       if (qr.kind === "interactive" && qr.interactive_payload) {
         openInteractiveBuilder(qr.interactive_payload);
         return;
       }
       const body = qr.content_text ?? "";
-      // Separate the snippet from any existing draft with a newline so the
-      // words don't run together ("Thanks" + "we'll…" → "Thankswe'll…").
-      setText((prev) =>
-        prev && !/\s$/.test(prev) ? `${prev}\n${body}` : `${prev}${body}`,
-      );
+      setText((prev) => {
+        const base = replaceCommand
+          ? prev.replace(/(?:^|\s)\/\S*$/, "").replace(/\s+$/, "")
+          : prev;
+        // Separate the snippet from any existing draft with a newline so
+        // the words don't run together ("Thanks" + "we'll…" → "Thankswe'll…").
+        return base && !/\s$/.test(base) ? `${base}\n${body}` : `${base}${body}`;
+      });
       requestAnimationFrame(() => {
         adjustHeight();
         const el = textareaRef.current;
@@ -379,6 +423,61 @@ export function MessageComposer({
       });
     },
     [openInteractiveBuilder, adjustHeight],
+  );
+
+  const handlePickQuickReply = useCallback(
+    (qr: QuickReply) => {
+      setQuickReplyOpen(false);
+      applyQuickReplyBody(qr, false);
+    },
+    [applyQuickReplyBody],
+  );
+
+  // Picking from the "/" dropdown replaces the command text with the reply.
+  const pickSlashReply = useCallback(
+    (qr: QuickReply) => {
+      setSlashIndex(0);
+      applyQuickReplyBody(qr, true);
+    },
+    [applyQuickReplyBody],
+  );
+
+  // Composer key handling. While a "/" command is active, arrow keys
+  // navigate the dropdown, Enter picks the highlighted reply, Escape
+  // clears the command; otherwise Enter sends the message.
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (slashActive) {
+        const count = slashResults.length;
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setSlashIndex((i) => (count === 0 ? 0 : (i + 1) % count));
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setSlashIndex((i) => (count === 0 ? 0 : (i - 1 + count) % count));
+          return;
+        }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const qr = slashResults[Math.min(slashIndex, count - 1)];
+          if (qr) pickSlashReply(qr);
+          return;
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setText((prev) => prev.replace(/(?:^|\s)\/\S*$/, ""));
+          return;
+        }
+      }
+
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      }
+    },
+    [slashActive, slashResults, slashIndex, pickSlashReply, handleSend]
   );
 
   // Upload a captured file to chat-media and stage it as a draft.
@@ -726,29 +825,69 @@ export function MessageComposer({
             )}
           </GatedButton>
 
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              readOnly
-                ? t("readOnlyPlaceholder")
-                : sessionExpired
-                  ? t("sessionExpiredPlaceholder")
-                  : t("typeMessagePlaceholder")
-            }
-            disabled={sessionExpired || readOnly}
-            rows={1}
-            // Textarea keeps its own inline title — the GatedButton
-            // wrapping pattern doesn't apply to non-button inputs.
-            // The placeholder text also surfaces the read-only state.
-            title={readOnly ? t("readOnlyTitle") : undefined}
-            className={cn(
-              "flex-1 resize-none rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-primary/50",
-              (sessionExpired || readOnly) && "cursor-not-allowed opacity-50"
+          <div className="relative flex-1">
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              placeholder={
+                readOnly
+                  ? t("readOnlyPlaceholder")
+                  : sessionExpired
+                    ? t("sessionExpiredPlaceholder")
+                    : t("typeMessagePlaceholder")
+              }
+              disabled={sessionExpired || readOnly}
+              rows={1}
+              // Textarea keeps its own inline title — the GatedButton
+              // wrapping pattern doesn't apply to non-button inputs.
+              // The placeholder text also surfaces the read-only state.
+              title={readOnly ? t("readOnlyTitle") : undefined}
+              className={cn(
+                "w-full resize-none rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-primary/50",
+                (sessionExpired || readOnly) && "cursor-not-allowed opacity-50"
+              )}
+            />
+
+            {/* "/" quick-reply dropdown — WhatsApp Business-style. Appears
+                above the composer while a slash command is active; typing
+                after the "/" filters the list live. */}
+            {slashActive && !sessionExpired && !readOnly && (
+              <div className="absolute bottom-full left-0 right-0 z-20 mb-2 max-h-56 overflow-y-auto rounded-xl border border-border bg-popover shadow-lg">
+                {slashResults.length === 0 ? (
+                  <p className="px-3 py-2.5 text-xs text-muted-foreground">
+                    {t("quickRepliesEmpty")}
+                  </p>
+                ) : (
+                  <ul className="py-1">
+                    {slashResults.map((qr, i) => (
+                      <li key={qr.id}>
+                        <button
+                          type="button"
+                          onMouseEnter={() => setSlashIndex(i)}
+                          onClick={() => pickSlashReply(qr)}
+                          className={cn(
+                            "flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm",
+                            i === slashIndex ? "bg-muted" : "hover:bg-muted/60"
+                          )}
+                        >
+                          {qr.kind === "interactive" ? (
+                            <Zap className="h-3.5 w-3.5 shrink-0 text-primary" />
+                          ) : (
+                            <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          )}
+                          <span className="min-w-0 flex-1 truncate">
+                            {qr.title}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
-          />
+          </div>
 
           <GatedButton
             size="sm"
@@ -768,7 +907,7 @@ export function MessageComposer({
           under the textarea left edge. */}
       {!draft && !recording && (
         <p className="mt-1 pl-[5.5rem] text-[10px] text-muted-foreground">
-          {t("draftHint")}
+          {t("draftHint")} · {t("slashHint")}
         </p>
       )}
 

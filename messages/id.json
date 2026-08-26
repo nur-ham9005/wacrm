@@ -224,7 +224,8 @@
       "send": "Kirim",
       "quickReplyNamePrompt": "Beri nama balasan cepat ini:",
       "quickReplySaved": "Tersimpan sebagai balasan cepat.",
-      "quickReplySaveError": "Gagal menyimpan balasan cepat."
+      "quickReplySaveError": "Gagal menyimpan balasan cepat.",
+      "slashHint": "Ketik / untuk balasan cepat"
     },
     "bubble": {
       "photo": "Foto",
