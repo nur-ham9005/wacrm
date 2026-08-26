@@ -24,6 +24,23 @@ export async function middleware(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
+  const sess = await supabase.auth.getSession()
+
+  // TEMP-DIAG: pin down the mobile "flash loop" after login. Logs what
+  // the middleware sees per auth-page / protected request so we can tell
+  // whether the auth cookies reach the server and whether validation
+  // passes. Remove after diagnosis.
+  if (
+    request.nextUrl.pathname === '/login' ||
+    request.nextUrl.pathname === '/dashboard'
+  ) {
+    console.log(
+      `[middleware-diag] ${request.nextUrl.pathname} user=${Boolean(user)} session=${Boolean(sess.data.session)} cookies=${request.cookies
+        .getAll()
+        .map((c) => c.name)
+        .join(',')}`,
+    )
+  }
 
   // getUser() validates the access token against the Auth server, so it
   // can miss transiently right after a sign-in — the cookie is present
@@ -35,9 +52,7 @@ export async function middleware(request: NextRequest) {
   // protected page/route still re-validates server-side via
   // getCurrentAccount(), so a stale or forged cookie can't read data; it
   // just stops being bounced back to the login form.
-  const hasSession =
-    Boolean(user) ||
-    Boolean((await supabase.auth.getSession()).data.session)
+  const hasSession = Boolean(user) || Boolean(sess.data.session)
 
   // getUser() transparently refreshes an expired access token, which
   // ROTATES the refresh token and writes the new cookies onto
