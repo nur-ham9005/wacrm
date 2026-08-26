@@ -855,22 +855,22 @@ export function MessageThread({
   );
 
   const handleAssignChange = useCallback(
-    async (agentId: string | null) => {
-      if (!conversation) return;
+    async (agentId: string | null): Promise<boolean> => {
+      if (!conversation) return false;
 
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("conversations")
-        .update({ assigned_agent_id: agentId })
-        .eq("id", conversation.id);
-
-      if (error) {
-        console.error("Failed to update assignment:", error);
-        toast.error("Failed to update assignment");
-        return;
+      const res = await fetch(`/api/conversations/${conversation.id}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agent_id: agentId }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        toast.error(payload.error || "Failed to update assignment");
+        return false;
       }
-
-      onAssignChange(conversation.id, agentId);
+      const data = (await res.json()) as { assigned_agent_id: string | null };
+      onAssignChange(conversation.id, data.assigned_agent_id ?? null);
+      return true;
     },
     [conversation, onAssignChange],
   );
@@ -881,7 +881,8 @@ export function MessageThread({
     if (!conversation || !contact || !handoffTarget) return;
     setHandoffSaving(true);
     try {
-      await handleAssignChange(handoffTarget.user_id);
+      const ok = await handleAssignChange(handoffTarget.user_id);
+      if (!ok) return;
       if (handoffNote.trim()) {
         const supabase = createClient();
         const { error } = await supabase.from("contact_notes").insert({
@@ -932,18 +933,34 @@ export function MessageThread({
     ? (currentAssignee?.full_name ?? t("assigned"))
     : t("assign");
 
+  // A closed conversation is resolved — the composer is locked until it's
+  // reopened (manually, or automatically when the customer writes again).
+  const isClosed = conversation.status === "closed";
+
   // Agents may only reply to a conversation they're assigned to (or one
   // that's unassigned); owner/admin can always reply. Mirrors the server
-  // check in /api/whatsapp/send.
+  // check in /api/whatsapp/send. A closed thread is never reply-able.
   const canReply =
+    !isClosed &&
+    (accountRole === "owner" ||
+      accountRole === "admin" ||
+      !assignedAgentId ||
+      assignedAgentId === user?.id);
+
+  // Distinct hint for the composer: an agent locked out by assignment.
+  const assignedToOther =
+    !isClosed &&
+    accountRole === "agent" &&
+    !!assignedAgentId &&
+    assignedAgentId !== user?.id;
+
+  // Who may change assignment: owner/admin always; an agent only on an
+  // unassigned thread (claim) or one they own (transfer/release).
+  const canManageAssignment =
     accountRole === "owner" ||
     accountRole === "admin" ||
     !assignedAgentId ||
     assignedAgentId === user?.id;
-
-  // Distinct hint for the composer: an agent locked out by assignment.
-  const assignedToOther =
-    accountRole === "agent" && !!assignedAgentId && assignedAgentId !== user?.id;
 
   return (
     // `min-w-0` is load-bearing: the page already puts min-w-0 on the
@@ -1067,7 +1084,8 @@ export function MessageThread({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Assign dropdown */}
+          {/* Assign dropdown — only the assignee or admin/owner can change it. */}
+          {canManageAssignment && (
           <DropdownMenu>
             <DropdownMenuTrigger
               className={cn(
@@ -1137,6 +1155,7 @@ export function MessageThread({
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
         </div>
       </div>
 
@@ -1233,19 +1252,33 @@ export function MessageThread({
         }}
       />
 
-      {/* Composer */}
-      <MessageComposer
-        conversationId={conversation.id}
-        sessionExpired={sessionInfo.expired}
-        onSend={handleSend}
-        onSendMedia={handleSendMedia}
-        onSendInteractive={handleSendInteractive}
-        onOpenTemplates={handleOpenTemplates}
-        replyTo={replyTo}
-        onClearReply={() => setReplyTo(null)}
-        canReply={canReply}
-        assignedToOther={assignedToOther}
-      />
+      {/* Composer — replaced by a Reopen bar while the thread is closed. */}
+      {isClosed ? (
+        <div className="border-t border-border bg-card px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">{t("closedHint")}</p>
+            <Button
+              onClick={() => handleStatusChange("open")}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              {t("reopen")}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <MessageComposer
+          conversationId={conversation.id}
+          sessionExpired={sessionInfo.expired}
+          onSend={handleSend}
+          onSendMedia={handleSendMedia}
+          onSendInteractive={handleSendInteractive}
+          onOpenTemplates={handleOpenTemplates}
+          replyTo={replyTo}
+          onClearReply={() => setReplyTo(null)}
+          canReply={canReply}
+          assignedToOther={assignedToOther}
+        />
+      )}
 
       <TemplatePicker
         open={templateModalOpen}

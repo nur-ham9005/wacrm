@@ -834,11 +834,14 @@ function waitMs(cfg: WaitStepConfig): number {
  * excluded from auto-assignment). Availability = `is_available` AND still
  * under `max_concurrent` open conversations. Ties break alphabetically by
  * name so the rotation is deterministic. Returns null when no agent is
- * available/under capacity.
+ * available/under capacity. `excludeUserId` (optional) is skipped — used
+ * when re-assigning after an unassign so the chat doesn't bounce straight
+ * back to the agent who just released it.
  */
-async function resolveRoundRobinAgent(
+export async function resolveRoundRobinAgent(
   db: SupabaseClient,
   accountId: string,
+  excludeUserId?: string,
 ): Promise<string | null> {
   const { data: profiles } = await db
     .from('profiles')
@@ -869,7 +872,9 @@ async function resolveRoundRobinAgent(
   // Only agents still under their capacity are assignable; pick the
   // least-loaded so the load distributes evenly across the team.
   const candidates = eligible.filter(
-    (p) => (load.get(p.user_id) ?? 0) < (p.max_concurrent ?? 2),
+    (p) =>
+      p.user_id !== excludeUserId &&
+      (load.get(p.user_id) ?? 0) < (p.max_concurrent ?? 2),
   )
   if (candidates.length === 0) return null
   candidates.sort(

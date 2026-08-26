@@ -202,6 +202,8 @@
       "handoffNotePlaceholder": "mis. Sudah disurvei — tinggal kirim penawaran.",
       "handoffConfirm": "Lempar",
       "cancel": "Batal",
+      "closedHint": "Percakapan ini sudah ditutup.",
+      "reopen": "Buka lagi",
       "noMessagesYet": "Belum ada pesan",
       "sendTemplateHint": "Kirim template untuk memulai percakapan",
       "selectConversation": "Pilih percakapan",
