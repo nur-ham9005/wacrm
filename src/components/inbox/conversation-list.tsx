@@ -13,7 +13,6 @@ import { Search, ChevronDown, X, Clock, UserPlus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/hooks/use-auth";
-import { usePresence } from "@/hooks/use-presence";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import {
@@ -65,7 +64,13 @@ export function ConversationList({
 }: ConversationListProps) {
   const t = useTranslations("Inbox.conversationList");
   const { user } = useAuth();
-  const { now } = usePresence();
+  // Local ticking clock for the "waiting long" badge (avoids a second
+  // presence subscription here — the thread already owns one).
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const tick = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(tick);
+  }, []);
   
   const FILTER_OPTIONS: { label: string; value: InboxFilter }[] = useMemo(() => [
     { label: t("filterAll"), value: "all" },
