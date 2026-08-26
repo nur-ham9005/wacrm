@@ -42,7 +42,23 @@ export interface AutomationContext {
   agent_id?: string
   /** Button / list-row id the customer tapped, for interactive_reply. */
   interactive_reply_id?: string
+  /** Contact profile fields, enriched at dispatch so step templates can
+   *  reference {{contact.name}}, {{contact.phone}}, {{contact.company}}. */
+  contact_name?: string
+  contact_phone?: string
+  contact_company?: string
+  /** Resolved service-category tag name (set by the greeting flow), used
+   *  by {{contact.service}} in create_deal titles. */
+  contact_service?: string
 }
+
+/** Service categories the greeting flow tags onto a contact. Matched
+ *  against the contact's tags to resolve {{contact.service}}. */
+const SERVICE_CATEGORY_TAGS = [
+  'Saluran Mampet',
+  'Air Bersih & Toren',
+  'Instalasi Sanitary',
+]
 
 export interface DispatchInput {
   /** Account-level tenancy key. Drives the lookup of which active
@@ -78,7 +94,7 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
     if (input.contactId) {
       const { data: owned, error: ownErr } = await db
         .from('contacts')
-        .select('id')
+        .select('id, name, phone, company')
         .eq('id', input.contactId)
         .eq('account_id', input.accountId)
         .maybeSingle()
@@ -90,6 +106,30 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
         console.warn('[automations] contact not in account, refusing dispatch', input.contactId)
         return
       }
+
+      // Enrich the context with the contact's profile + resolved service
+      // category so step templates can reference {{contact.name}},
+      // {{contact.phone}}, {{contact.company}} and {{contact.service}}.
+      const enriched: AutomationContext = { ...(input.context ?? {}) }
+      if (owned.name) enriched.contact_name = owned.name
+      if (owned.phone) enriched.contact_phone = owned.phone
+      if (owned.company) enriched.contact_company = owned.company
+
+      const { data: ctagRows } = await db
+        .from('contact_tags')
+        .select('tags(name)')
+        .eq('contact_id', input.contactId)
+      const serviceName = SERVICE_CATEGORY_TAGS.find((name) =>
+        (ctagRows ?? []).some((r: unknown) => {
+          const tag = (r as { tags?: { name?: string } | { name?: string }[] | null })
+            ?.tags
+          const tagName = Array.isArray(tag) ? tag?.[0]?.name : tag?.name
+          return tagName === name
+        }),
+      )
+      if (serviceName) enriched.contact_service = serviceName
+
+      input.context = enriched
     }
 
     const { data: automations, error } = await db
@@ -576,7 +616,12 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         pipeline_id: cfg.pipeline_id,
         stage_id: cfg.stage_id,
         contact_id: args.contactId,
-        title: interpolate(cfg.title, args),
+        // Trim a trailing " — " left behind when {{contact.service}}
+        // resolved empty (e.g. a manually-tagged contact with no
+        // service-category tag).
+        title: interpolate(cfg.title, args)
+          .replace(/\s*[-–—]\s*$/, '')
+          .trim() || 'Prospek Baru',
         value: cfg.value ?? 0,
         currency: acct?.default_currency ?? 'USD',
         status: 'open',
@@ -795,6 +840,10 @@ function interpolate(s: string, args: ExecuteArgs): string {
     const [ns, prop] = String(key).split('.')
     if (ns === 'message' && prop === 'text') return String(args.context.message_text ?? '')
     if (ns === 'vars' && prop) return String(args.context.vars?.[prop] ?? '')
+    if (ns === 'contact' && prop === 'name') return String(args.context.contact_name ?? '')
+    if (ns === 'contact' && prop === 'phone') return String(args.context.contact_phone ?? '')
+    if (ns === 'contact' && prop === 'company') return String(args.context.contact_company ?? '')
+    if (ns === 'contact' && prop === 'service') return String(args.context.contact_service ?? '')
     return ''
   })
 }
